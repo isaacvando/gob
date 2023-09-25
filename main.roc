@@ -9,12 +9,16 @@ app "main"
     ]
     provides [main] to pf
 
+main : Task {} I32
 main = 
     args <- Arg.list |> Task.await
     when List.get args 1 is 
         Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a stack program."
         Ok arg -> 
-            path = Path.fromStr arg
-            File.readUtf8 path |> Task.await \file -> 
-                Stdout.line file
+            file <- Path.fromStr arg 
+                |> File.readUtf8 
+                |> Task.mapErr \_ -> 1
+                |> Task.await
+            Stdout.line file
+            # Stdout.line "foobar"
 

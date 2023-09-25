@@ -15,10 +15,29 @@ main =
     when List.get args 1 is 
         Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a stack program."
         Ok arg -> 
-            file <- Path.fromStr arg 
-                |> File.readUtf8 
-                |> Task.mapErr \_ -> 1
-                |> Task.await
-            Stdout.line file
-            # Stdout.line "foobar"
+            read = Path.fromStr arg |> File.readUtf8 
+            Task.attempt read \result ->
+                when result is
+                    Err _ -> Stdout.line "I wasn't able to read from '\(arg)'"
+                    Ok file -> run file
+
+Program : [Program]
+
+ParseError : [ParseError]
+
+parse : Str -> Result Program ParseError
+parse = \file -> Ok Program
+
+run : Str -> Task {} I32
+run = \program -> when parse program is
+    Err e -> parseErrorToString e |> Stdout.line
+    Ok prog -> interpret prog
+
+interpret : Program -> Task {} I32
+interpret = \program -> Stdout.line "done interpreting"
+
+parseErrorToString : ParseError -> Str
+parseErrorToString = \error ->
+    when error is
+        ParseError -> "I was unable to parse the input file"
 

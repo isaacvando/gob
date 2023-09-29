@@ -1,7 +1,7 @@
 app "main"
     packages {
         pf: "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
-        parser: "Parser/main.roc",
+
     }
     imports [
         pf.Stdout,
@@ -9,7 +9,7 @@ app "main"
         pf.File,
         pf.Arg,
         pf.Path,
-        parser.Core.{ Parser },
+        Parser.{ Quote },
     ]
     provides [main] to pf
 
@@ -25,27 +25,12 @@ main =
                     Err _ -> Stdout.line "I wasn't able to read from '\(arg)'"
                     Ok file -> run file
 
-# Types
-Program : List Term
-Term : [Copy, Add, Multiply, Number I64, String Str]
-
-# Parsing
-parse : Str -> Result Program [ParsingFailure Str, ParsingIncomplete Str]
-parse = \file ->
-    cleaned =
-        file
-        |> Str.replaceEach " " ""
-        |> Str.replaceEach "\t" " "
-    Core.parse (Core.fail "fail") cleaned Str.isEmpty
-
 # Execution
 run : Str -> Task {} I32
 run = \program ->
-    when parse program is
-        Err (ParsingFailure msg) -> Str.concat "I wasn't able to parse the input file: " msg |> Stdout.line
-        Err (ParsingIncomplete _) -> Stdout.line "I couldn't parse the whole file" gs
+    when Parser.parse program is
+        Err msg -> Str.concat "I wasn't able to parse the input file: " msg |> Stdout.line
         Ok prog -> interpret prog
 
-interpret : Program -> Task {} I32
-interpret = \program -> Stdout.line program
-
+interpret : Quote -> Task {} I32
+interpret = \p -> Stdout.line "finished running"

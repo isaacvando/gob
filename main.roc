@@ -15,6 +15,7 @@ app "main"
 main : Task {} I32
 main =
     args <- Arg.list |> Task.await
+    dbg "running"
     when List.get args 1 is
         Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a stack program."
         Ok arg ->

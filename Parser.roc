@@ -10,7 +10,7 @@ Term : [
     Dup,
     Swap,
     Dig,
-    Quote,
+    Quote (List Term),
 ]
 
 Parser : {
@@ -21,19 +21,30 @@ Parser : {
 
 parse : Str -> Result Program Str
 parse = \input ->
-    program {
+    result = program {
         tokens: lex input,
         index: 0,
         result: [],
     }
+    dbg
+        result
 
-program : Parser -> Result Program Str
+    Result.map result .result
+
+program : Parser -> Result Parser Str
 program = \parser ->
+    # dbg parser.result
     go = \term -> parser |> add term |> program
-    when List.get parser.tokens parser.index is
-        Err OutOfBounds -> Ok parser.result
-        Ok term ->
+    when parser.tokens is
+        [] -> Ok parser
+        [term, ..] ->
             when term is
+                "]" -> Ok parser
+                "[" ->
+                    when program { parser & index: parser.index + 1 } is
+                        Err msg -> Err msg
+                        Ok p -> program { parser & index: p.index, result: List.append parser.result (Quote p.result) }
+
                 "dup" -> go Dup
                 "swap" -> go Swap
                 "dig" -> go Dig
@@ -50,11 +61,13 @@ add = \parser, term ->
 
 lex : Str -> List Str
 lex = \input ->
-    input
-    |> Str.replaceEach "[" "[ "
-    |> Str.replaceEach "]" " ]"
-    |> Str.replaceEach "\n" " "
-    |> Str.split " "
+    result = input
+        |> Str.replaceEach "[" "[ "
+        |> Str.replaceEach "]" " ]"
+        |> Str.replaceEach "\n" " "
+        |> Str.split " "
+    dbg result
+    result 
 
 expect
     lex "345 copy swap [swap dup 4]\ncopy" == ["345", "copy", "swap", "[", "swap", "dup", "4", "]", "copy"]

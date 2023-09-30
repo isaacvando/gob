@@ -10,7 +10,7 @@ Term : [
     Dup,
     Swap,
     Dig,
-    Quote (List Term),
+    # Quote (List Term),
 ]
 
 Parser : {
@@ -21,15 +21,13 @@ Parser : {
 
 parse : Str -> Result Program Str
 parse = \input ->
-    result = program {
-        tokens: lex input,
-        index: 0,
-        result: [],
-    }
-    dbg
-        result
-
-    Result.map result .result
+    # result = program {
+    #     tokens: lex input,
+    #     index: 0,
+    #     result: [],
+    # }
+    # Result.map result (\parser -> parser.result)
+    Ok []
 
 program : Parser -> Result Parser Str
 program = \parser ->
@@ -39,12 +37,11 @@ program = \parser ->
         [] -> Ok parser
         [term, ..] ->
             when term is
-                "]" -> Ok parser
-                "[" ->
-                    when program { parser & index: parser.index + 1 } is
-                        Err msg -> Err msg
-                        Ok p -> program { parser & index: p.index, result: List.append parser.result (Quote p.result) }
-
+                # "]" -> Ok parser
+                # "[" ->
+                #     when program { parser & index: parser.index + 1 } is
+                #         Err msg -> Err msg
+                #         Ok p -> program { parser & index: p.index, result: List.append parser.result (Quote p.result) }
                 "dup" -> go Dup
                 "swap" -> go Swap
                 "dig" -> go Dig
@@ -61,13 +58,14 @@ add = \parser, term ->
 
 lex : Str -> List Str
 lex = \input ->
-    result = input
-        |> Str.replaceEach "[" "[ "
-        |> Str.replaceEach "]" " ]"
-        |> Str.replaceEach "\n" " "
-        |> Str.split " "
-    dbg result
-    result 
+    input
+    |> Str.replaceEach "[" "[ "
+    |> Str.replaceEach "]" " ]"
+    |> Str.replaceEach "\n" " "
+    |> Str.replaceEach "\t" " "
+    |> Str.split " "
 
-expect
-    lex "345 copy swap [swap dup 4]\ncopy" == ["345", "copy", "swap", "[", "swap", "dup", "4", "]", "copy"]
+expect lex "345 copy swap [swap dup 4]\ncopy" == ["345", "copy", "swap", "[", "swap", "dup", "4", "]", "copy"]
+
+expect 1 == 1
+

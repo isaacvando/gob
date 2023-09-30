@@ -1,34 +1,37 @@
 interface Parser
-    exposes [parse, Quote]
+    exposes [parse, Program]
     imports []
 
-Quote : List [Number U32, Add, Multiply, Copy, Swap, Quote]
+Program : List [Number U32, Add, Multiply, Copy, Swap, Quote]
 
 Parser : {
     tokens : List Str,
-    index : U32,
-    result : Quote,
-    error : Str,
+    index: Nat,
+    result : Program,
 }
 
-parse : Str -> Result Quote Str
+parse : Str -> Result Program Str
 parse = \file ->
-    parser = {
+    program {
         tokens: Str.graphemes file,
         index: 0,
         result: [],
-        error: "",
     }
-    parseResult = quote parser
+
+program : Parser -> Result Program Str
+program = \parser ->
     if
-        parseResult.error != ""
+        parser.index + 1 == List.len parser.tokens
     then
-        Err parseResult.error
-    else
-        Ok parseResult.result
+        Ok parser.result
+    else if matches parser "copy" 
+        then Ok [Copy]
+        else Err "err"
 
-quote : Parser -> Parser
-quote = \parser -> 
-  when parser.tokens is
-      [] -> parser
 
+
+
+matches : Parser, Str -> Bool
+matches = \parser, token ->
+    gs = Str.graphemes token
+    List.sublist parser.tokens {start: parser.index, len: List.len gs} == gs

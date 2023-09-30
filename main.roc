@@ -9,7 +9,7 @@ app "main"
         pf.File,
         pf.Arg,
         pf.Path,
-        Parser.{ Quote },
+        Parser.{ Program },
     ]
     provides [main] to pf
 
@@ -32,5 +32,5 @@ run = \program ->
         Err msg -> Str.concat "I wasn't able to parse the input file: " msg |> Stdout.line
         Ok prog -> interpret prog
 
-interpret : Quote -> Task {} I32
+interpret : Program -> Task {} I32
 interpret = \p -> Stdout.line "finished running"

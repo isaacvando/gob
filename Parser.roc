@@ -3,7 +3,15 @@ interface Parser
     imports []
 
 Program : List Term
-Term : [Number U32, Add, Multiply, Dup, Swap, Quote]
+Term : [
+    Number I64,
+    Add,
+    Multiply,
+    Dup,
+    Swap,
+    Dig,
+    Quote,
+]
 
 Parser : {
     tokens : List Str,
@@ -12,42 +20,41 @@ Parser : {
 }
 
 parse : Str -> Result Program Str
-parse = \file ->
+parse = \input ->
     program {
-        tokens: Str.graphemes file,
+        tokens: lex input,
         index: 0,
         result: [],
     }
 
 program : Parser -> Result Program Str
 program = \parser ->
-    dbg
-        T parser.index parser.result
+    go = \term -> parser |> add term |> program
+    when List.get parser.tokens parser.index is
+        Err OutOfBounds -> Ok parser.result
+        Ok term ->
+            when term is
+                "dup" -> go Dup
+                "swap" -> go Swap
+                "dig" -> go Dig
+                "+" -> go Add
+                "*" -> go Multiply
+                x ->
+                    when Str.toI64 x is
+                        Ok num -> Number num |> go
+                        Err _ -> Err "I don't recognize '\(x)'"
 
-    if
-        parser.index == List.len parser.tokens
-    then
-        Ok parser.result
-    else if
-        matches parser "dup"
-    then
-        advance parser Dup 3 |> program
-    else if
-        matches parser "swap"
-    then
-        advance parser Swap 4 |> program
-    else
-        Err "err"
+add : Parser, Term -> Parser
+add = \parser, term ->
+    { parser & index: parser.index + 1, result: List.append parser.result term }
 
-matches : Parser, Str -> Bool
-matches = \parser, token ->
-    gs = Str.graphemes token
-    List.sublist parser.tokens { start: parser.index, len: List.len gs } == gs
-
-advance : Parser, Term, Nat -> Parser
-advance = \parser, term, len ->
-    { parser & index: parser.index + len, result: List.append parser.result term }
+lex : Str -> List Str
+lex = \input ->
+    input
+    |> Str.replaceEach "[" "[ "
+    |> Str.replaceEach "]" " ]"
+    |> Str.replaceEach "\n" " "
+    |> Str.split " "
 
 expect
-    parse "dup" == Ok [Dup]
-
+    lex "345 copy swap [swap dup 4]\ncopy" == ["345", "copy", "swap", "[", "swap", "dup", "4", "]", "copy"]

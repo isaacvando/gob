@@ -2,11 +2,12 @@ interface Parser
     exposes [parse, Program]
     imports []
 
-Program : List [Number U32, Add, Multiply, Copy, Swap, Quote]
+Program : List Term
+Term : [Number U32, Add, Multiply, Dup, Swap, Quote]
 
 Parser : {
     tokens : List Str,
-    index: Nat,
+    index : Nat,
     result : Program,
 }
 
@@ -20,18 +21,33 @@ parse = \file ->
 
 program : Parser -> Result Program Str
 program = \parser ->
+    dbg
+        T parser.index parser.result
+
     if
-        parser.index + 1 == List.len parser.tokens
+        parser.index == List.len parser.tokens
     then
         Ok parser.result
-    else if matches parser "copy" 
-        then Ok [Copy]
-        else Err "err"
-
-
-
+    else if
+        matches parser "dup"
+    then
+        advance parser Dup 3 |> program
+    else if
+        matches parser "swap"
+    then
+        advance parser Swap 4 |> program
+    else
+        Err "err"
 
 matches : Parser, Str -> Bool
 matches = \parser, token ->
     gs = Str.graphemes token
-    List.sublist parser.tokens {start: parser.index, len: List.len gs} == gs
+    List.sublist parser.tokens { start: parser.index, len: List.len gs } == gs
+
+advance : Parser, Term, Nat -> Parser
+advance = \parser, term, len ->
+    { parser & index: parser.index + len, result: List.append parser.result term }
+
+expect
+    parse "dup" == Ok [Dup]
+

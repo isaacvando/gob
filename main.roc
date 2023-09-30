@@ -1,7 +1,6 @@
 app "main"
     packages {
         pf: "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
-
     }
     imports [
         pf.Stdout,
@@ -33,4 +32,8 @@ run = \program ->
         Ok prog -> interpret prog
 
 interpret : Program -> Task {} I32
-interpret = \p -> Stdout.line "finished running"
+interpret = \p ->
+    dbg
+        p
+
+    Stdout.line "finished running"

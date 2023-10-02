@@ -21,13 +21,16 @@ Parser : {
 
 parse : Str -> Result Program Str
 parse = \input ->
-    # result = program {
-    #     tokens: lex input,
-    #     index: 0,
-    #     result: [],
-    # }
-    # Result.map result (\parser -> parser.result)
-    Ok []
+    result = program {
+        # tokens: lex input,
+        tokens: ["dup"],
+        index: 0,
+        result: List.withCapacity 1000,
+    }
+    when result is
+        Err x -> Err x
+        Ok p -> Ok p.result
+
 
 program : Parser -> Result Parser Str
 program = \parser ->
@@ -37,20 +40,21 @@ program = \parser ->
         [] -> Ok parser
         [term, ..] ->
             when term is
+                _ -> Err "in program"
                 # "]" -> Ok parser
                 # "[" ->
                 #     when program { parser & index: parser.index + 1 } is
                 #         Err msg -> Err msg
                 #         Ok p -> program { parser & index: p.index, result: List.append parser.result (Quote p.result) }
-                "dup" -> go Dup
-                "swap" -> go Swap
-                "dig" -> go Dig
-                "+" -> go Add
-                "*" -> go Multiply
-                x ->
-                    when Str.toI64 x is
-                        Ok num -> Number num |> go
-                        Err _ -> Err "I don't recognize '\(x)'"
+                # "dup" -> go Dup
+                # "swap" -> go Swap
+                # "dig" -> go Dig
+                # "+" -> go Add
+                # "*" -> go Multiply
+                # x ->
+                #     when Str.toI64 x is
+                #         Ok num -> Number num |> go
+                #         Err _ -> Err "I don't recognize '\(x)'"
 
 add : Parser, Term -> Parser
 add = \parser, term ->

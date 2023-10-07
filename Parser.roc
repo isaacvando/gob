@@ -22,10 +22,9 @@ Parser : {
 parse : Str -> Result Program Str
 parse = \input ->
     result = program {
-        # tokens: lex input,
-        tokens: ["dup"],
+        tokens: lex input,
         index: 0,
-        result: List.withCapacity 1000,
+        result: [],
     }
     when result is
         Err x -> Err x
@@ -34,27 +33,20 @@ parse = \input ->
 
 program : Parser -> Result Parser Str
 program = \parser ->
-    # dbg parser.result
     go = \term -> parser |> add term |> program
-    when parser.tokens is
-        [] -> Ok parser
-        [term, ..] ->
+    when List.get parser.tokens parser.index is
+        Err _ -> Ok parser
+        Ok term ->
             when term is
-                _ -> Err "in program"
-                # "]" -> Ok parser
-                # "[" ->
-                #     when program { parser & index: parser.index + 1 } is
-                #         Err msg -> Err msg
-                #         Ok p -> program { parser & index: p.index, result: List.append parser.result (Quote p.result) }
-                # "dup" -> go Dup
-                # "swap" -> go Swap
-                # "dig" -> go Dig
-                # "+" -> go Add
-                # "*" -> go Multiply
-                # x ->
-                #     when Str.toI64 x is
-                #         Ok num -> Number num |> go
-                #         Err _ -> Err "I don't recognize '\(x)'"
+                "dup" -> go Dup
+                "swap" -> go Swap
+                "dig" -> go Dig
+                "+" -> go Add
+                "*" -> go Multiply
+                x ->
+                    when Str.toI64 x is
+                        Ok num -> Number num |> go
+                        Err _ -> Err "I don't recognize '\(x)'"
 
 add : Parser, Term -> Parser
 add = \parser, term ->

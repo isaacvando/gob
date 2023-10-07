@@ -29,15 +29,18 @@ run : Str -> Task {} I32
 run = \input ->
     when Parser.parse input is
         Err msg -> Str.concat "I wasn't able to parse the input file: " msg |> Stdout.line
-        Ok prog -> interpret [] prog
+        Ok prog -> 
+            msg <- Task.loop ([], prog) interpret |> Task.await
+            Stdout.line msg
 
-interpret : Stack, Program -> Task {} I32
-interpret = \stack, program ->
+
+# interpret : (Stack, Program) -> Task {} I32
+interpret = \(stack, program)->
     _ <- showExecution stack program |> Stdout.line |> Task.await
     when step stack program is
-        Err EndOfProgram -> Stdout.line "done"
-        Err Exception -> Stdout.line "Uh oh, something went wrong!"
-        Ok (s,p) -> showExecution s p |> Stdout.line
+        Err EndOfProgram -> Done "done" |> Task.ok
+        Err Exception -> Done "Uh oh, something went wrong!" |> Task.ok
+        Ok state -> Step state |> Task.ok
 
 
 step : Stack, Program -> Result (Stack, Program) [EndOfProgram, Exception]

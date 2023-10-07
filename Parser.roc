@@ -1,8 +1,9 @@
 interface Parser
-    exposes [parse, Program]
+    exposes [parse, Program, Stack, Term]
     imports []
 
 Program : List Term
+Stack : Program
 Term : [
     Number I64,
     Add,
@@ -29,7 +30,6 @@ parse = \input ->
     when result is
         Err x -> Err x
         Ok p -> Ok p.result
-
 
 program : Parser -> Result Parser Str
 program = \parser ->

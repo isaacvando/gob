@@ -29,28 +29,61 @@ run : Str -> Task {} I32
 run = \input ->
     when Parser.parse input is
         Err msg -> Str.concat "I wasn't able to parse the input file: " msg |> Stdout.line
-        Ok prog -> 
+        Ok prog ->
             msg <- Task.loop ([], prog) interpret |> Task.await
             Stdout.line msg
 
-
-# interpret : (Stack, Program) -> Task {} I32
-interpret = \(stack, program)->
+interpret = \(stack, program) ->
     _ <- showExecution stack program |> Stdout.line |> Task.await
     when step stack program is
-        Err EndOfProgram -> Done "done" |> Task.ok
+        Err EndOfProgram -> Done "Done" |> Task.ok
         Err Exception -> Done "Uh oh, something went wrong!" |> Task.ok
         Ok state -> Step state |> Task.ok
 
-
 step : Stack, Program -> Result (Stack, Program) [EndOfProgram, Exception]
-step = \stack, program -> 
+step = \stack, program ->
+    p = List.dropFirst program
     when List.first program is
         Err _ -> Err EndOfProgram
-        Ok term -> when term is
-            Number x -> Ok (List.append stack (Number x), List.dropFirst program)
-            _ -> Err Exception
+        Ok term ->
+            when term is
+                Number x -> Ok (List.append stack (Number x), p)
+                Add ->
+                    when stack is
+                        [.., Number x, Number y] ->
+                            s = stack |> dropLast2 |> List.append (Number (x + y))
+                            Ok (s, p)
 
+                        _ -> Err Exception
+
+                Multiply ->
+                    when stack is
+                        [.., Number x, Number y] ->
+                            s = stack |> dropLast2 |> List.append (Number (x * y))
+                            Ok (s, p)
+
+                        _ -> Err Exception
+
+                Dup ->
+                    when stack is
+                        [.., x] -> Ok (List.append stack x, p)
+                        _ -> Err Exception
+
+                Swap ->
+                    when stack is
+                        [.., x, y] -> Ok (stack |> dropLast2 |> List.concat [y, x], p)
+                        _ -> Err Exception
+
+                Dig ->
+                    when stack is
+                        [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
+                        _ -> Err Exception
+
+                _ -> Err Exception
+
+dropLast2 : List a -> List a
+dropLast2 = \list ->
+    list |> List.dropLast |> List.dropLast
 
 showExecution : Stack, Program -> Str
 showExecution = \stack, program ->

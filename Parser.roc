@@ -15,42 +15,46 @@ Term : [
     Dup,
     Swap,
     Dig,
-    # Quote (List Term),
+    Quote (List Term),
 ]
 
-parse : Str -> Result Program Str
+# parse : Str -> Result Program Str
 parse = \input ->
     when String.parseStr program input is
         Err (ParsingFailure msg) -> Err msg
         Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was: \(remaining)"
         Ok p -> Ok p
 
-program : Parser RawStr Program
+# program : Parser RawStr Program
 program =
+    dbg "program"
     block =
         Core.const (\x -> x)
         |> Core.skip whitespace
         |> Core.keep term
 
-    Core.const (\x -> x)
-    |> Core.keep (Core.many block)
-    |> Core.skip whitespace
 
-term : Parser RawStr Term
+    p = Core.const (\x -> x)
+        |> Core.keep (Core.many block)
+        |> Core.skip whitespace
+
+    Core.buildPrimitiveParser (\input -> Core.parsePartial p input)
+
+# term : Parser RawStr Term
 term =
     keywords = [("dup", Dup), ("swap", Swap), ("dig", Dig)] |> List.map keyword
-    Core.oneOf keywords
+    List.append keywords quote |> Core.oneOf
 
 # quote : Parser RawStr Term
-quote = Core.between program (String.scalar '[') (String.scalar ']')
-    |> Core.map (\list -> Quote list)
+quote =Core.between program (String.scalar '[') (String.scalar ']')
+        |> Core.map (\list -> Quote list)
 
-keyword : (Str, Term) -> Parser RawStr Term
+# keyword : (Str, Term) -> Parser RawStr Term
 keyword = \(name, tag) ->
     String.string name
     |> Core.map \_ -> tag
 
-isWhitespace : U8 -> Bool
+# isWhitespace : U8 -> Bool
 isWhitespace = \char ->
     when char is
         ' ' -> Bool.true
@@ -59,6 +63,6 @@ isWhitespace = \char ->
         '\r' -> Bool.true
         _ -> Bool.false
 
-whitespace : Parser (List U8) (List U8)
+# whitespace : Parser (List U8) (List U8)
 whitespace =
     Core.chompWhile isWhitespace

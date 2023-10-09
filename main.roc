@@ -111,3 +111,4 @@ showTerm = \term ->
         Swap -> "swap"
         Dig -> "dig"
         # Quote prog -> "[\(showProgram prog)]"
+        _ -> "catchall"

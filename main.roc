@@ -1,6 +1,7 @@
 app "main"
     packages {
         pf: "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
+        parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.1.0/vPU-UZbWGIXsAfcJvAnmU3t3SWlHoG_GauZpqzJiBKA.tar.br",
     }
     imports [
         pf.Stdout,
@@ -8,6 +9,8 @@ app "main"
         pf.File,
         pf.Arg,
         pf.Path,
+        parser.Core,
+        parser.String,
         Parser.{ Program, Stack, Term },
     ]
     provides [main] to pf
@@ -28,7 +31,7 @@ main =
 run : Str -> Task {} I32
 run = \input ->
     when Parser.parse input is
-        Err msg -> Str.concat "I wasn't able to parse the input file: " msg |> Stdout.line
+        Err msg -> Stdout.line msg
         Ok prog ->
             msg <- Task.loop ([], prog) interpret |> Task.await
             Stdout.line msg
@@ -101,8 +104,10 @@ showTerm : Term -> Str
 showTerm = \term ->
     when term is
         Number x -> Num.toStr x
+        String s -> "'\(s)'"
         Add -> "+"
         Multiply -> "*"
         Dup -> "dup"
         Swap -> "swap"
         Dig -> "dig"
+        # Quote prog -> "[\(showProgram prog)]"

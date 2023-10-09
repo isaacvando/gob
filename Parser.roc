@@ -1,11 +1,15 @@
 interface Parser
     exposes [parse, Program, Stack, Term]
-    imports []
+    imports [
+        parser.Core.{ Parser },
+        parser.String.{ RawStr },
+    ]
 
 Program : List Term
 Stack : Program
 Term : [
     Number I64,
+    String Str,
     Add,
     Multiply,
     Dup,
@@ -14,54 +18,47 @@ Term : [
     # Quote (List Term),
 ]
 
-Parser : {
-    tokens : List Str,
-    index : Nat,
-    result : Program,
-}
-
 parse : Str -> Result Program Str
 parse = \input ->
-    result = program {
-        tokens: lex input,
-        index: 0,
-        result: [],
-    }
-    when result is
-        Err x -> Err x
-        Ok p -> Ok p.result
+    when String.parseStr program input is
+        Err (ParsingFailure msg) -> Err msg
+        Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was: \(remaining)"
+        Ok p -> Ok p
 
-program : Parser -> Result Parser Str
-program = \parser ->
-    go = \term -> parser |> add term |> program
-    when List.get parser.tokens parser.index is
-        Err _ -> Ok parser
-        Ok term ->
-            when term is
-                "dup" -> go Dup
-                "swap" -> go Swap
-                "dig" -> go Dig
-                "+" -> go Add
-                "*" -> go Multiply
-                x ->
-                    when Str.toI64 x is
-                        Ok num -> Number num |> go
-                        Err _ -> Err "I don't recognize '\(x)'"
+program : Parser RawStr Program
+program =
+    block =
+        Core.const (\x -> x)
+        |> Core.skip whitespace
+        |> Core.keep term
 
-add : Parser, Term -> Parser
-add = \parser, term ->
-    { parser & index: parser.index + 1, result: List.append parser.result term }
+    Core.const (\x -> x)
+    |> Core.keep (Core.many block)
+    |> Core.skip whitespace
 
-lex : Str -> List Str
-lex = \input ->
-    input
-    |> Str.replaceEach "[" "[ "
-    |> Str.replaceEach "]" " ]"
-    |> Str.replaceEach "\n" " "
-    |> Str.replaceEach "\t" " "
-    |> Str.split " "
+term : Parser RawStr Term
+term =
+    keywords = [("dup", Dup), ("swap", Swap), ("dig", Dig)] |> List.map keyword
+    Core.oneOf keywords
 
-expect lex "345 copy swap [swap dup 4]\ncopy" == ["345", "copy", "swap", "[", "swap", "dup", "4", "]", "copy"]
+# quote : Parser RawStr Term
+quote = Core.between program (String.scalar '[') (String.scalar ']')
+    |> Core.map (\list -> Quote list)
 
-expect 1 == 1
+keyword : (Str, Term) -> Parser RawStr Term
+keyword = \(name, tag) ->
+    String.string name
+    |> Core.map \_ -> tag
 
+isWhitespace : U8 -> Bool
+isWhitespace = \char ->
+    when char is
+        ' ' -> Bool.true
+        '\n' -> Bool.true
+        '\t' -> Bool.true
+        '\r' -> Bool.true
+        _ -> Bool.false
+
+whitespace : Parser (List U8) (List U8)
+whitespace =
+    Core.chompWhile isWhitespace

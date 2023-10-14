@@ -16,7 +16,7 @@ Term : [
     Swap,
     Dig,
     Quote (List Term),
-    Apply
+    Apply,
 ]
 
 # parse : Str -> Result Program Str
@@ -39,7 +39,11 @@ program =
 
 # term : Parser RawStr Term
 term =
-    otherTerms = [number, quote]
+    otherTerms = [
+        number,
+        quote,
+        string,
+    ]
     List.concat keywords otherTerms |> Core.oneOf
 
 keywords =
@@ -55,6 +59,19 @@ keywords =
 
 number =
     String.digits |> Core.map Number
+
+string =
+    toStr = \list ->
+        when Str.fromUtf8 list is
+            Ok s -> String s
+            Err _ -> crash "TODO: don't crash here"
+
+    isNotQuote = \c -> c != '"'
+
+    Core.const toStr
+    |> Core.skip (String.string "\"")
+    |> Core.keep (Core.chompWhile isNotQuote)
+    |> Core.skip (String.string "\"")
 
 # quote : Parser RawStr Term
 quote =

@@ -51,6 +51,7 @@ step = \stack, program ->
         Ok term ->
             when term is
                 Number x -> Ok (List.append stack (Number x), p)
+                String x -> Ok (List.append stack (String x), p)
                 Add ->
                     when stack is
                         [.., Number x, Number y] ->
@@ -82,13 +83,14 @@ step = \stack, program ->
                         [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
                         _ -> Err Exception
 
-                Quote _ -> 
+                Quote _ ->
                     Ok (stack |> List.append term, p)
 
-                Apply -> 
+                Apply ->
                     when stack is
                         [.., Quote ts] -> Ok (stack |> List.dropLast, List.concat ts p)
                         _ -> Err Exception
+                    
 
                 _ -> Err Exception
 
@@ -112,7 +114,7 @@ showProgram = \program ->
 showTerm = \term ->
     when term is
         Number x -> Num.toStr x
-        String s -> "'\(s)'"
+        String s -> "\"\(s)\""
         Add -> "+"
         Multiply -> "*"
         Dup -> "dup"

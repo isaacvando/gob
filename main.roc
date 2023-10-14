@@ -82,6 +82,14 @@ step = \stack, program ->
                         [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
                         _ -> Err Exception
 
+                Quote _ -> 
+                    Ok (stack |> List.append term, p)
+
+                Apply -> 
+                    when stack is
+                        [.., Quote ts] -> Ok (stack |> List.dropLast, List.concat ts p)
+                        _ -> Err Exception
+
                 _ -> Err Exception
 
 dropLast2 : List a -> List a
@@ -111,5 +119,6 @@ showTerm = \term ->
         Swap -> "swap"
         Dig -> "dig"
         Quote prog -> "[\(showProgram prog)]"
+        Apply -> "apply"
         _ -> "catchall"
 

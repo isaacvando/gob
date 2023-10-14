@@ -8,7 +8,7 @@ interface Parser
 Program : List Term
 Stack : Program
 Term : [
-    Number I64,
+    Number Nat,
     String Str,
     Add,
     Multiply,
@@ -16,6 +16,7 @@ Term : [
     Swap,
     Dig,
     Quote (List Term),
+    Apply
 ]
 
 # parse : Str -> Result Program Str
@@ -33,18 +34,37 @@ program =
         |> Core.keep term
 
     Core.const (\x -> x)
-        |> Core.keep (Core.many block)
-        |> Core.skip whitespace
+    |> Core.keep (Core.many block)
+    |> Core.skip whitespace
 
 # term : Parser RawStr Term
 term =
-    keywords = [("dup", Dup), ("swap", Swap), ("dig", Dig)] |> List.map keyword
-    List.append keywords quote |> Core.oneOf
+    otherTerms = [number, quote]
+    List.concat keywords otherTerms |> Core.oneOf
+
+keywords =
+    [
+        ("dup", Dup),
+        ("swap", Swap),
+        ("dig", Dig),
+        ("+", Add),
+        ("*", Multiply),
+        ("apply", Apply),
+    ]
+    |> List.map keyword
+
+number =
+    String.digits |> Core.map Number
 
 # quote : Parser RawStr Term
 quote =
-    Core.buildPrimitiveParser (\input -> Core.parsePartial (Core.between program (String.scalar '[') (String.scalar ']')
-        |> Core.map (\list -> Quote list)) input)
+    Core.buildPrimitiveParser
+        (\input -> Core.parsePartial
+                (
+                    Core.between program (String.scalar '[') (String.scalar ']')
+                    |> Core.map (\list -> Quote list)
+                )
+                input)
 
 # keyword : (Str, Term) -> Parser RawStr Term
 keyword = \(name, tag) ->

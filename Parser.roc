@@ -27,18 +27,14 @@ parse = \input ->
 
 # program : Parser RawStr Program
 program =
-    dbg "program"
     block =
         Core.const (\x -> x)
         |> Core.skip whitespace
         |> Core.keep term
 
-
-    p = Core.const (\x -> x)
+    Core.const (\x -> x)
         |> Core.keep (Core.many block)
         |> Core.skip whitespace
-
-    Core.buildPrimitiveParser (\input -> Core.parsePartial p input)
 
 # term : Parser RawStr Term
 term =
@@ -46,8 +42,9 @@ term =
     List.append keywords quote |> Core.oneOf
 
 # quote : Parser RawStr Term
-quote =Core.between program (String.scalar '[') (String.scalar ']')
-        |> Core.map (\list -> Quote list)
+quote =
+    Core.buildPrimitiveParser (\input -> Core.parsePartial (Core.between program (String.scalar '[') (String.scalar ']')
+        |> Core.map (\list -> Quote list)) input)
 
 # keyword : (Str, Term) -> Parser RawStr Term
 keyword = \(name, tag) ->

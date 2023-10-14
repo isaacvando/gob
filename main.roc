@@ -100,7 +100,7 @@ showProgram = \program ->
     |> List.map showTerm
     |> Str.joinWith " "
 
-showTerm : Term -> Str
+# showTerm : Term -> Str
 showTerm = \term ->
     when term is
         Number x -> Num.toStr x
@@ -110,5 +110,6 @@ showTerm = \term ->
         Dup -> "dup"
         Swap -> "swap"
         Dig -> "dig"
-        # Quote prog -> "[\(showProgram prog)]"
+        Quote prog -> "[\(showProgram prog)]"
         _ -> "catchall"
+

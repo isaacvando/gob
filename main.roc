@@ -54,6 +54,8 @@ step = \stack, program ->
             when term is
                 Number x -> Ok (List.append stack (Number x), p)
                 String x -> Ok (List.append stack (String x), p)
+                True -> Ok (List.append stack True, p)
+                False -> Ok (List.append stack False, p)
                 Add ->
                     when stack is
                         [.., Number x, Number y] ->
@@ -111,6 +113,19 @@ step = \stack, program ->
                         [.., Quote x, Quote y] -> Ok (stack |> List.dropLast |> List.append (Quote (List.concat x y)), p)
                         _ -> Err Exception
 
+                If ->
+                    when stack is
+                        [.., True, branch, _] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                        [.., False, _, branch] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                        _ -> Err Exception
+
+                Equals -> 
+                    when stack is
+                        [.., x, y] -> 
+                            toBool = \b -> if b then True else False
+                            Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
+                        _ -> Err Exception
+
                 _ -> Err Exception
 
 dropLast2 : List a -> List a
@@ -137,6 +152,7 @@ showTerm = \term ->
         Add -> "+"
         Subtract -> "-"
         Multiply -> "*"
+        Equals -> "="
         Dup -> "dup"
         Swap -> "swap"
         Dig -> "dig"
@@ -144,5 +160,8 @@ showTerm = \term ->
         Apply -> "apply"
         Repeat -> "repeat"
         Compose -> "compose"
+        True -> "true"
+        False -> "false"
+        If -> "if"
         _ -> "catchall"
 

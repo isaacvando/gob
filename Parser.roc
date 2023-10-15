@@ -10,9 +10,12 @@ Stack : Program
 Term : [
     Number Nat,
     String Str,
+    True,
+    False,
     Add,
     Subtract,
     Multiply,
+    Equals,
     Dup,
     Swap,
     Dig,
@@ -20,6 +23,7 @@ Term : [
     Apply,
     Repeat,
     Compose,
+    If,
 ]
 
 # parse : Str -> Result Program Str
@@ -66,9 +70,13 @@ keywords =
         ("+", Add),
         ("-", Subtract),
         ("*", Multiply),
+        ("=", Equals),
         ("apply", Apply),
         ("repeat", Repeat),
         ("compose", Compose),
+        ("if", If),
+        ("true", True),
+        ("false", False),
     ]
     |> List.map keyword
 

@@ -34,13 +34,15 @@ run = \input ->
         Err msg -> Stdout.line msg
         Ok prog ->
             msg <- Task.loop ([], prog) interpret |> Task.await
-            Stdout.line msg
+            when msg is
+                Ok {} -> Task.ok {}
+                Err m -> Stdout.line m
 
 interpret = \(stack, program) ->
     _ <- showExecution stack program |> Stdout.line |> Task.await
     when step stack program is
-        Err EndOfProgram -> Done "Done" |> Task.ok
-        Err Exception -> Done "Uh oh, something went wrong!" |> Task.ok
+        Err EndOfProgram -> Done (Ok {}) |> Task.ok
+        Err Exception -> Done (Err "Uh oh, something went wrong!") |> Task.ok
         Ok state -> Step state |> Task.ok
 
 step : Stack, Program -> Result (Stack, Program) [EndOfProgram, Exception]
@@ -56,6 +58,14 @@ step = \stack, program ->
                     when stack is
                         [.., Number x, Number y] ->
                             s = stack |> dropLast2 |> List.append (Number (x + y))
+                            Ok (s, p)
+
+                        _ -> Err Exception
+
+                Subtract ->
+                    when stack is
+                        [.., Number x, Number y] ->
+                            s = stack |> dropLast2 |> List.append (Number (x - y))
                             Ok (s, p)
 
                         _ -> Err Exception
@@ -90,7 +100,11 @@ step = \stack, program ->
                     when stack is
                         [.., Quote ts] -> Ok (stack |> List.dropLast, List.concat ts p)
                         _ -> Err Exception
-                    
+
+                Repeat -> 
+                    when stack is 
+                        [.., t, Number x] -> Ok (stack |> List.dropLast |> List.dropLast |> List.concat (List.repeat t x), p)
+                        _ -> Err Exception
 
                 _ -> Err Exception
 
@@ -116,11 +130,13 @@ showTerm = \term ->
         Number x -> Num.toStr x
         String s -> "\"\(s)\""
         Add -> "+"
+        Subtract -> "-"
         Multiply -> "*"
         Dup -> "dup"
         Swap -> "swap"
         Dig -> "dig"
         Quote prog -> "[\(showProgram prog)]"
         Apply -> "apply"
+        Repeat -> "repeat"
         _ -> "catchall"
 

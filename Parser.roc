@@ -11,19 +11,21 @@ Term : [
     Number Nat,
     String Str,
     Add,
+    Subtract,
     Multiply,
     Dup,
     Swap,
     Dig,
     Quote (List Term),
     Apply,
+    Repeat,
 ]
 
 # parse : Str -> Result Program Str
 parse = \input ->
     when String.parseStr program input is
         Err (ParsingFailure msg) -> Err msg
-        Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was: \(remaining)"
+        Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was:\n \(remaining)"
         Ok p -> Ok p
 
 # program : Parser RawStr Program
@@ -31,11 +33,16 @@ program =
     block =
         Core.const (\x -> x)
         |> Core.skip whitespace
+        |> Core.skip comment
+        |> Core.skip whitespace
         |> Core.keep term
 
     Core.const (\x -> x)
     |> Core.keep (Core.many block)
     |> Core.skip whitespace
+    |> Core.skip comment
+    |> Core.skip whitespace
+
 
 # term : Parser RawStr Term
 term =
@@ -52,10 +59,21 @@ keywords =
         ("swap", Swap),
         ("dig", Dig),
         ("+", Add),
+        ("-", Subtract),
         ("*", Multiply),
         ("apply", Apply),
+        ("repeat", Repeat),
     ]
     |> List.map keyword
+
+comment = 
+    c = Core.const (\x -> x)
+        |> Core.skip (String.scalar '#')
+        |> Core.skip (Core.chompUntil '\n')
+        |> Core.skip (String.scalar '\n')
+        |> Core.keep (String.string "")
+    Core.alt c (String.string "")
+
 
 number =
     String.digits |> Core.map Number

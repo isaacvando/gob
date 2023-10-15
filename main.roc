@@ -101,9 +101,14 @@ step = \stack, program ->
                         [.., Quote ts] -> Ok (stack |> List.dropLast, List.concat ts p)
                         _ -> Err Exception
 
-                Repeat -> 
-                    when stack is 
+                Repeat ->
+                    when stack is
                         [.., t, Number x] -> Ok (stack |> List.dropLast |> List.dropLast |> List.concat (List.repeat t x), p)
+                        _ -> Err Exception
+
+                Compose ->
+                    when stack is
+                        [.., Quote x, Quote y] -> Ok (stack |> List.dropLast |> List.append (Quote (List.concat x y)), p)
                         _ -> Err Exception
 
                 _ -> Err Exception
@@ -138,5 +143,6 @@ showTerm = \term ->
         Quote prog -> "[\(showProgram prog)]"
         Apply -> "apply"
         Repeat -> "repeat"
+        Compose -> "compose"
         _ -> "catchall"
 

@@ -95,12 +95,12 @@ step = \stack, program ->
                         [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
                         _ -> Err Exception
 
-                Quote _ ->
+                Quotation _ ->
                     Ok (stack |> List.append term, p)
 
                 Apply ->
                     when stack is
-                        [.., Quote ts] -> Ok (stack |> List.dropLast, List.concat ts p)
+                        [.., Quotation ts] -> Ok (stack |> List.dropLast, List.concat ts p)
                         _ -> Err Exception
 
                 Repeat ->
@@ -110,7 +110,7 @@ step = \stack, program ->
 
                 Compose ->
                     when stack is
-                        [.., Quote x, Quote y] -> Ok (stack |> List.dropLast |> List.append (Quote (List.concat x y)), p)
+                        [.., Quotation x, Quotation y] -> Ok (stack |> List.dropLast |> List.dropLast |> List.append (Quotation (List.concat x y)), p)
                         _ -> Err Exception
 
                 If ->
@@ -124,6 +124,16 @@ step = \stack, program ->
                         [.., x, y] -> 
                             toBool = \b -> if b then True else False
                             Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
+                        _ -> Err Exception
+
+                Quote -> 
+                    when stack is
+                        [..,x] -> Ok (stack |> List.dropLast |> List.append (Quotation [x]), p)
+                        _ -> Err Exception
+
+                Drop -> 
+                    when stack is
+                        [.., x] -> Ok (stack |> List.dropLast, p)
                         _ -> Err Exception
 
                 _ -> Err Exception
@@ -156,12 +166,14 @@ showTerm = \term ->
         Dup -> "dup"
         Swap -> "swap"
         Dig -> "dig"
-        Quote prog -> "[\(showProgram prog)]"
+        Quotation prog -> "[\(showProgram prog)]"
         Apply -> "apply"
         Repeat -> "repeat"
         Compose -> "compose"
         True -> "true"
         False -> "false"
         If -> "if"
+        Drop -> "drop"
+        Quote -> "quote"
         _ -> "catchall"
 

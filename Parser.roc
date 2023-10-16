@@ -19,11 +19,13 @@ Term : [
     Dup,
     Swap,
     Dig,
-    Quote (List Term),
+    Quotation (List Term),
     Apply,
     Repeat,
     Compose,
     If,
+    Quote,
+    Drop, 
 ]
 
 # parse : Str -> Result Program Str
@@ -74,6 +76,8 @@ keywords =
         ("apply", Apply),
         ("repeat", Repeat),
         ("compose", Compose),
+        ("quote", Quote),
+        ("drop", Drop),
         ("if", If),
         ("true", True),
         ("false", False),
@@ -102,7 +106,7 @@ quote =
         (\input -> Core.parsePartial
                 (
                     Core.between program (String.scalar '[') (String.scalar ']')
-                    |> Core.map (\list -> Quote list)
+                    |> Core.map (\list -> Quotation list)
                 )
                 input)
 

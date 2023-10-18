@@ -12,20 +12,8 @@ Term : [
     String Str,
     True,
     False,
-    Add,
-    Subtract,
-    Multiply,
-    Equals,
-    Dup,
-    Swap,
-    Dig,
     Quotation (List Term),
-    Apply,
-    Repeat,
-    Compose,
-    If,
-    Quote,
-    Drop, 
+    Builtin Str
 ]
 
 # parse : Str -> Result Program Str
@@ -62,27 +50,28 @@ term =
         quote,
         string,
     ]
-    List.concat keywords otherTerms |> Core.oneOf
+    List.concat builtins otherTerms |> Core.oneOf
 
-keywords =
+builtins =
+    toParser = \s -> String.string s |> Core.map Builtin
     [
-        ("dup", Dup),
-        ("swap", Swap),
-        ("dig", Dig),
-        ("+", Add),
-        ("-", Subtract),
-        ("*", Multiply),
-        ("=", Equals),
-        ("apply", Apply),
-        ("repeat", Repeat),
-        ("compose", Compose),
-        ("quote", Quote),
-        ("drop", Drop),
-        ("if", If),
-        ("true", True),
-        ("false", False),
+        "dup", 
+        "swap",
+        "dig",
+        "+", 
+        "-", 
+        "*", 
+        "=", 
+        "apply", 
+        "repeat", 
+        "compose", 
+        "quote", 
+        "drop", 
+        "branch", 
+        "true", 
+        "false", 
     ]
-    |> List.map keyword
+    |> List.map toParser
 
 number =
     String.digits |> Core.map Number
@@ -109,11 +98,6 @@ quote =
                     |> Core.map (\list -> Quotation list)
                 )
                 input)
-
-# keyword : (Str, Term) -> Parser RawStr Term
-keyword = \(name, tag) ->
-    String.string name
-    |> Core.map \_ -> tag
 
 # isWhitespace : U8 -> Bool
 isWhitespace = \char ->

@@ -57,91 +57,91 @@ step = \stack, program ->
                 True -> Ok (List.append stack True, p)
                 False -> Ok (List.append stack False, p)
                 Quotation _ -> Ok (stack |> List.append term, p)
-                Builtin s -> stepBuiltin stack program s
+                Builtin s -> stepBuiltin stack p s
         
                 _ -> Err Exception
 
-
+stepBuiltin : Stack, Program, Str -> Result (Stack, Program) [EndOfProgram, Exception]
 stepBuiltin = \stack, p, name -> 
     when name is 
-            "add" ->
-                when stack is
-                    [.., Number x, Number y] ->
-                        s = stack |> dropLast2 |> List.append (Number (x + y))
-                        Ok (s, p)
+        "+" ->
+            when stack is
+                [.., Number x, Number y] ->
+                    s = stack |> dropLast2 |> List.append (Number (x + y))
+                    Ok (s, p)
 
-                    _ -> Err Exception
+                _ -> Err Exception
 
-            "subtract" ->
-                when stack is
-                    [.., Number x, Number y] ->
-                        s = stack |> dropLast2 |> List.append (Number (x - y))
-                        Ok (s, p)
+        "-" ->
+            when stack is
+                [.., Number x, Number y] ->
+                    s = stack |> dropLast2 |> List.append (Number (x - y))
+                    Ok (s, p)
 
-                    _ -> Err Exception
+                _ -> Err Exception
 
-            "multiply" ->
-                when stack is
-                    [.., Number x, Number y] ->
-                        s = stack |> dropLast2 |> List.append (Number (x * y))
-                        Ok (s, p)
+        "*" ->
+            when stack is
+                [.., Number x, Number y] ->
+                    s = stack |> dropLast2 |> List.append (Number (x * y))
+                    Ok (s, p)
 
-                    _ -> Err Exception
+                _ -> Err Exception
 
-            "dup" ->
-                when stack is
-                    [.., x] -> Ok (List.append stack x, p)
-                    _ -> Err Exception
+        "dup" ->
+            when stack is
+                [.., x] -> Ok (List.append stack x, p)
+                _ -> Err Exception
 
-            "swap" ->
-                when stack is
-                    [.., x, y] -> Ok (stack |> dropLast2 |> List.concat [y, x], p)
-                    _ -> Err Exception
+        "swap" ->
+            when stack is
+                [.., x, y] -> Ok (stack |> dropLast2 |> List.concat [y, x], p)
+                _ -> Err Exception
 
-            "dig" ->
-                when stack is
-                    [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
-                    _ -> Err Exception
+        "dig" ->
+            when stack is
+                [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
+                _ -> Err Exception
 
-            "apply" ->
-                when stack is
-                    [.., Quotation ts] -> Ok (stack |> List.dropLast, List.concat ts p)
-                    _ -> Err Exception
+        "apply" ->
+            when stack is
+                [.., Quotation ts] -> Ok (stack |> List.dropLast, List.concat ts p)
+                _ -> Err Exception
 
-            "repeat" ->
-                when stack is
-                    [.., t, Number x] -> Ok (stack |> List.dropLast |> List.dropLast |> List.concat (List.repeat t x), p)
-                    _ -> Err Exception
+        "repeat" ->
+            when stack is
+                [.., t, Number x] -> Ok (stack |> List.dropLast |> List.dropLast |> List.concat (List.repeat t x), p)
+                _ -> Err Exception
 
-            "compose" ->
-                when stack is
-                    [.., Quotation x, Quotation y] -> Ok (stack |> List.dropLast |> List.dropLast |> List.append (Quotation (List.concat x y)), p)
-                    _ -> Err Exception
+        "compose" ->
+            when stack is
+                [.., Quotation x, Quotation y] -> Ok (stack |> List.dropLast |> List.dropLast |> List.append (Quotation (List.concat x y)), p)
+                _ -> Err Exception
 
-            "branch" ->
-                when stack is
-                    [.., _, branch, True] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
-                    [.., branch, _, False] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
-                    _ -> Err Exception
+        "branch" ->
+            when stack is
+                [.., _, branch, True] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                [.., branch, _, False] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                _ -> Err Exception
 
-            "=" -> 
-                when stack is
-                    [.., x, y] -> 
-                        toBool = \b -> if b then True else False
-                        Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
-                    _ -> Err Exception
+        "=" -> 
+            when stack is
+                [.., x, y] -> 
+                    toBool = \b -> if b then True else False
+                    Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
+                _ -> Err Exception
 
-            "quote" -> 
-                when stack is
-                    [..,x] -> Ok (stack |> List.dropLast |> List.append (Quotation [x]), p)
-                    _ -> Err Exception
+        "quote" -> 
+            when stack is
+                [..,x] -> Ok (stack |> List.dropLast |> List.append (Quotation [x]), p)
+                _ -> Err Exception
 
-            "drop" -> 
-                when stack is
-                    [.., x] -> Ok (stack |> List.dropLast, p)
-                    _ -> Err Exception
+        "drop" -> 
+            when stack is
+                [.., x] -> Ok (stack |> List.dropLast, p)
+                _ -> Err Exception
 
-            _ -> Err Exception
+        _ -> Err Exception
 
 dropLast2 : List a -> List a
 dropLast2 = \list ->

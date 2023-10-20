@@ -1,0 +1,2 @@
+# An infinite loop counting up by one
+0 [swap 1 + swap dup apply] swap 1 + swap dup apply

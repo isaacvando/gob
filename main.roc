@@ -58,12 +58,11 @@ step = \stack, program ->
                 False -> Ok (List.append stack False, p)
                 Quotation _ -> Ok (stack |> List.append term, p)
                 Builtin s -> stepBuiltin stack p s
-        
                 _ -> Err Exception
 
 stepBuiltin : Stack, Program, Str -> Result (Stack, Program) [EndOfProgram, Exception]
-stepBuiltin = \stack, p, name -> 
-    when name is 
+stepBuiltin = \stack, p, name ->
+    when name is
         "+" ->
             when stack is
                 [.., Number x, Number y] ->
@@ -120,23 +119,28 @@ stepBuiltin = \stack, p, name ->
 
         "branch" ->
             when stack is
-                [.., _, branch, True] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
-                [.., branch, _, False] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                [.., True, branch, _] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                [.., False, _, branch] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
                 _ -> Err Exception
 
-        "=" -> 
+        "=" ->
             when stack is
-                [.., x, y] -> 
+                [.., x, y] ->
                     toBool = \b -> if b then True else False
                     Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
-                _ -> Err Exception
 
-        "quote" -> 
+                _ ->
+                    dbg
+                        stack
+
+                    Err Exception
+
+        "quote" ->
             when stack is
-                [..,x] -> Ok (stack |> List.dropLast |> List.append (Quotation [x]), p)
+                [.., x] -> Ok (stack |> List.dropLast |> List.append (Quotation [x]), p)
                 _ -> Err Exception
 
-        "drop" -> 
+        "drop" ->
             when stack is
                 [.., x] -> Ok (stack |> List.dropLast, p)
                 _ -> Err Exception

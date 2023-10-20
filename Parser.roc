@@ -13,7 +13,7 @@ Term : [
     True,
     False,
     Quotation (List Term),
-    Builtin Str
+    Builtin Str,
 ]
 
 # parse : Str -> Result Program Str
@@ -55,21 +55,21 @@ term =
 builtins =
     toParser = \s -> String.string s |> Core.map Builtin
     [
-        "dup", 
+        "dup",
         "swap",
         "dig",
-        "+", 
-        "-", 
-        "*", 
-        "=", 
-        "apply", 
-        "repeat", 
-        "compose", 
-        "quote", 
-        "drop", 
-        "branch", 
-        "true", 
-        "false", 
+        "+",
+        "-",
+        "*",
+        "=",
+        "apply",
+        "repeat",
+        "compose",
+        "quote",
+        "drop",
+        "branch",
+        "true",
+        "false",
     ]
     |> List.map toParser
 

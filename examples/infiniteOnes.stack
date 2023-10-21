@@ -1,1 +1,2 @@
+# An infinite list of ones
 [1 swap dup apply] 1 swap dup apply

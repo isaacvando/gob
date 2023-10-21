@@ -33,7 +33,31 @@ stripComments = \input ->
     |> Str.joinWith "\n"
 
 # program : Parser RawStr Program
-program =
+program = defName |> Core.map \x -> [x]
+
+defName =
+    check = \str ->
+        if isNotAlphaNumeric str
+        then Err "identifiers must be alphanumeric"
+        else Ok (Builtin (str |> Str.fromUtf8 |> Result.withDefault ""))
+
+    name = Core.chompUntil ':' |> Core.map check |> Core.flatten
+
+    Core.const (\x -> x)
+        |> Core.keep name
+        |> Core.skip (String.scalar ':')
+
+# isAlphaNumeric : List U8 -> Bool
+isNotAlphaNumeric = \str ->
+    digits = List.range { start: At 48, end: At 57 }
+    caps = List.range { start: At 65, end: At 90 }
+    lowers = List.range { start: At 97, end: At 122 }
+    alphaNumeric = List.join [digits, caps, lowers]
+
+    List.any str \c ->
+        alphaNumeric |> List.contains c |> Bool.not
+
+main =
     block =
         Core.const (\x -> x)
         |> Core.skip whitespace

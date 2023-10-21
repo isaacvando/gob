@@ -14,6 +14,7 @@ Term : [
     False,
     Quotation (List Term),
     Builtin Str,
+    Def Str,
 ]
 
 # parse : Str -> Result Program Str
@@ -37,15 +38,27 @@ program = defName |> Core.map \x -> [x]
 
 defName =
     check = \str ->
-        if isNotAlphaNumeric str
-        then Err "identifiers must be alphanumeric"
-        else Ok (Builtin (str |> Str.fromUtf8 |> Result.withDefault ""))
+        converted =
+            when Str.fromUtf8 str is
+                Ok s -> s
+                Err _ -> crash "utf8 conversion error"
+
+        if
+            isNotAlphaNumeric str
+        then
+            Err "identifiers must be alphanumeric"
+        else if
+            List.contains reserved converted
+        then
+            Err "'\(converted)' is a reserved word"
+        else
+            Ok (Builtin converted)
 
     name = Core.chompUntil ':' |> Core.map check |> Core.flatten
 
     Core.const (\x -> x)
-        |> Core.keep name
-        |> Core.skip (String.scalar ':')
+    |> Core.keep name
+    |> Core.skip (String.scalar ':')
 
 # isAlphaNumeric : List U8 -> Bool
 isNotAlphaNumeric = \str ->
@@ -78,24 +91,26 @@ term =
 
 builtins =
     toParser = \s -> String.string s |> Core.map Builtin
-    [
-        "dup",
-        "swap",
-        "dig",
-        "+",
-        "-",
-        "*",
-        "=",
-        "apply",
-        "repeat",
-        "compose",
-        "quote",
-        "drop",
-        "branch",
-        "true",
-        "false",
-    ]
-    |> List.map toParser
+    reserved |> List.map toParser
+
+reserved : List Str
+reserved = [
+    "dup",
+    "swap",
+    "dig",
+    "+",
+    "-",
+    "*",
+    "=",
+    "apply",
+    "repeat",
+    "compose",
+    "quote",
+    "drop",
+    "branch",
+    "true",
+    "false",
+]
 
 number =
     String.digits |> Core.map Number

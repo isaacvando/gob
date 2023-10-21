@@ -19,22 +19,44 @@ Term : [
 
 # parse : Str -> Result Program Str
 parse = \input ->
-    when String.parseStr program (stripComments input) is
+    when String.parseStr program (clean input) is
         Err (ParsingFailure msg) -> Err msg
         Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was:\n \(remaining)"
         Ok p -> Ok p
 
-stripComments : Str -> Str
-stripComments = \input ->
+clean : Str -> Str
+clean = \input ->
     isComment = \line -> Str.trimStart line
         |> Str.startsWithScalar '#'
 
     Str.split input "\n"
     |> List.dropIf isComment
+    |> List.dropIf isBlank
     |> Str.joinWith "\n"
 
+isBlank : Str -> Bool
+isBlank = \str ->
+    Str.toUtf8 str
+    |> List.all isWhitespace
+
 # program : Parser RawStr Program
-program = defName |> Core.map \x -> [x]
+program = 
+    Core.const (\defs -> \b -> b)
+        |> Core.keep (Core.many def)
+        |> Core.keep terms
+
+def = 
+    block = Core.const (\x -> x)
+        |> Core.skip hWhitespace
+        |> Core.keep term
+
+    Core.const (\n -> \t -> n)
+        |> Core.keep defName
+        |> Core.skip hWhitespace
+        |> Core.keep (Core.oneOrMore block)
+        |> Core.skip hWhitespace
+        |> Core.skip (String.scalar '\n')
+
 
 defName =
     check = \str ->
@@ -46,7 +68,7 @@ defName =
         if
             isNotAlphaNumeric str
         then
-            Err "identifiers must be alphanumeric"
+            Err "'\(converted)' must be alphanumeric"
         else if
             List.contains reserved converted
         then
@@ -70,7 +92,7 @@ isNotAlphaNumeric = \str ->
     List.any str \c ->
         alphaNumeric |> List.contains c |> Bool.not
 
-main =
+terms =
     block =
         Core.const (\x -> x)
         |> Core.skip whitespace
@@ -150,3 +172,13 @@ isWhitespace = \char ->
 # whitespace : Parser (List U8) (List U8)
 whitespace =
     Core.chompWhile isWhitespace
+
+
+isHWhitespace = \char -> 
+    when char is
+        ' ' -> Bool.true
+        '\t' -> Bool.true
+        _ -> Bool.false
+
+hWhitespace = 
+    Core.chompWhile isHWhitespace

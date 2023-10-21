@@ -5,8 +5,8 @@ interface Parser
         parser.String.{ RawStr },
     ]
 
-Program : List Term
-Stack : Program
+Program : { defs : Dict Str (List Term), body : List Term }
+Stack : List Term
 Term : [
     Number Nat,
     String Str,
@@ -17,7 +17,7 @@ Term : [
     Def Str,
 ]
 
-# parse : Str -> Result Program Str
+parse : Str -> Result Program Str
 parse = \input ->
     when String.parseStr program (clean input) is
         Err (ParsingFailure msg) -> Err msg
@@ -40,23 +40,39 @@ isBlank = \str ->
     |> List.all isWhitespace
 
 # program : Parser RawStr Program
-program = 
-    Core.const (\defs -> \b -> b)
-        |> Core.keep (Core.many def)
-        |> Core.keep terms
+program =
+    toProgram = \d -> \b ->
+            { defs: Dict.fromList d, body: b }
+    Core.const toProgram
+    |> Core.keep (Core.many def)
+    |> Core.keep terms
 
-def = 
-    block = Core.const (\x -> x)
+def =
+    block =
+        Core.const (\x -> x)
         |> Core.skip hWhitespace
         |> Core.keep term
 
-    Core.const (\n -> \t -> n)
-        |> Core.keep defName
-        |> Core.skip hWhitespace
-        |> Core.keep (Core.oneOrMore block)
-        |> Core.skip hWhitespace
-        |> Core.skip (String.scalar '\n')
+    Core.const (\name -> \ts -> (name, ts))
+    |> Core.keep defName
+    |> Core.skip hWhitespace
+    |> Core.keep (Core.many block)
+    |> Core.skip hWhitespace
+    |> Core.skip (String.scalar '\n')
 
+hTerms =
+    block =
+        Core.const (\x -> x)
+        |> Core.skip hWhitespace
+        |> Core.keep term
+
+    Core.const (\x -> x)
+    |> Core.keep (Core.many block)
+    |> Core.skip hWhitespace
+
+expect
+    String.parseStr hTerms "\t  true  false + -  []  "
+    == Ok [True, False, Builtin "+", Builtin "-", Quotation []]
 
 defName =
     check = \str ->
@@ -74,7 +90,7 @@ defName =
         then
             Err "'\(converted)' is a reserved word"
         else
-            Ok (Builtin converted)
+            Ok converted
 
     name = Core.chompUntil ':' |> Core.map check |> Core.flatten
 
@@ -155,10 +171,19 @@ quote =
     Core.buildPrimitiveParser
         (\input -> Core.parsePartial
                 (
-                    Core.between program (String.scalar '[') (String.scalar ']')
+                    Core.between hTerms (String.scalar '[') (String.scalar ']')
                     |> Core.map (\list -> Quotation list)
                 )
                 input)
+expect
+    String.parseStr quote "[]"
+    == Ok (Quotation [])
+expect
+    String.parseStr quote "[true]"
+    == Ok (Quotation [True])
+expect
+    String.parseStr quote "[true false + - [] ]"
+    == Ok (Quotation [True, False, Builtin "+", Builtin "-", Quotation []])
 
 # isWhitespace : U8 -> Bool
 isWhitespace = \char ->
@@ -173,12 +198,17 @@ isWhitespace = \char ->
 whitespace =
     Core.chompWhile isWhitespace
 
+expect String.parseStr whitespace " \t\n" == Ok [' ', '\t', '\n']
+expect String.parseStr whitespace "  \nfoo" |> Result.isErr
 
-isHWhitespace = \char -> 
+isHWhitespace = \char ->
     when char is
         ' ' -> Bool.true
         '\t' -> Bool.true
         _ -> Bool.false
 
-hWhitespace = 
+hWhitespace =
     Core.chompWhile isHWhitespace
+
+expect String.parseStr hWhitespace " \t" == Ok [' ', '\t']
+expect String.parseStr hWhitespace "  \n" |> Result.isErr

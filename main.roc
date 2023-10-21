@@ -33,7 +33,7 @@ run = \input ->
     when Parser.parse input is
         Err msg -> Stdout.line msg
         Ok prog ->
-            msg <- Task.loop ([], prog) interpret |> Task.await
+            msg <- Task.loop ([], prog.body) interpret |> Task.await
             when msg is
                 Ok {} -> Task.ok {}
                 Err m -> Stdout.line m
@@ -45,7 +45,7 @@ interpret = \(stack, program) ->
         Err Exception -> Done (Err "Uh oh, something went wrong!") |> Task.ok
         Ok state -> Step state |> Task.ok
 
-step : Stack, Program -> Result (Stack, Program) [EndOfProgram, Exception]
+step : Stack, List Term -> Result (Stack, List Term) [EndOfProgram, Exception]
 step = \stack, program ->
     p = List.dropFirst program
     when List.first program is
@@ -60,7 +60,7 @@ step = \stack, program ->
                 Builtin s -> stepBuiltin stack p s
                 _ -> Err Exception
 
-stepBuiltin : Stack, Program, Str -> Result (Stack, Program) [EndOfProgram, Exception]
+stepBuiltin : Stack, List Term, Str -> Result (Stack, List Term) [EndOfProgram, Exception]
 stepBuiltin = \stack, p, name ->
     when name is
         "+" ->
@@ -151,15 +151,15 @@ dropLast2 : List a -> List a
 dropLast2 = \list ->
     list |> List.dropLast |> List.dropLast
 
-showExecution : Stack, Program -> Str
+showExecution : Stack, List Term -> Str
 showExecution = \stack, program ->
-    showProgram stack
+    showTerms stack
     |> Str.concat " | "
-    |> Str.concat (showProgram program)
+    |> Str.concat (showTerms program)
 
-showProgram : Program -> Str
-showProgram = \program ->
-    program
+showTerms : List Term -> Str
+showTerms = \terms ->
+    terms
     |> List.map showTerm
     |> Str.joinWith " "
 
@@ -170,7 +170,7 @@ showTerm = \term ->
         String s -> "\"\(s)\""
         True -> "true"
         False -> "false"
-        Quotation prog -> "[\(showProgram prog)]"
+        Quotation prog -> "[\(showTerms prog)]"
         Builtin s -> s
         _ -> "catchall"
 

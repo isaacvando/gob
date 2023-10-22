@@ -33,22 +33,22 @@ run = \input ->
     when Parser.parse input is
         Err msg -> Stdout.line msg
         Ok prog ->
-            msg <- Task.loop ([], prog.body) interpret |> Task.await
+            msg <- Task.loop ([], prog) interpret |> Task.await
             when msg is
                 Ok {} -> Task.ok {}
                 Err m -> Stdout.line m
 
 interpret = \(stack, program) ->
-    _ <- showExecution stack program |> Stdout.line |> Task.await
+    _ <- showExecution stack program.body |> Stdout.line |> Task.await
     when step stack program is
         Err EndOfProgram -> Done (Ok {}) |> Task.ok
         Err Exception -> Done (Err "Uh oh, something went wrong!") |> Task.ok
         Ok state -> Step state |> Task.ok
 
-step : Stack, List Term -> Result (Stack, List Term) [EndOfProgram, Exception]
+step : Stack, Program -> Result (Stack, Program) [EndOfProgram, Exception]
 step = \stack, program ->
-    p = List.dropFirst program
-    when List.first program is
+    p = {program & body: List.dropFirst program.body }
+    when List.first program.body is
         Err _ -> Err EndOfProgram
         Ok term ->
             when term is
@@ -56,9 +56,12 @@ step = \stack, program ->
                 String x -> Ok (List.append stack (String x), p)
                 Quotation _ -> Ok (stack |> List.append term, p)
                 Builtin s -> stepBuiltin stack p s
+                Def s -> when Dict.get program.defs s is
+                    Err _ -> Err Exception
+                    Ok ts -> Ok (stack, {p & body: List.concat ts p.body})
                 _ -> Err Exception
 
-stepBuiltin : Stack, List Term, Str -> Result (Stack, List Term) [EndOfProgram, Exception]
+stepBuiltin : Stack, Program, Str -> Result (Stack, Program) [EndOfProgram, Exception]
 stepBuiltin = \stack, p, name ->
     when name is
         "+" ->
@@ -102,7 +105,7 @@ stepBuiltin = \stack, p, name ->
 
         "apply" ->
             when stack is
-                [.., Quotation ts] -> Ok (stack |> List.dropLast, List.concat ts p)
+                [.., Quotation ts] -> Ok (stack |> List.dropLast, {p & body: List.concat ts p.body })
                 _ -> Err Exception
 
         "repeat" ->
@@ -170,5 +173,6 @@ showTerm = \term ->
         String s -> "\"\(s)\""
         Quotation prog -> "[\(showTerms prog)]"
         Builtin s -> s
+        Def s -> s
         _ -> "catchall"
 

@@ -55,8 +55,13 @@ def =
         |> Core.skip hWhitespace
         |> Core.keep term
 
+    d =
+        Core.const (\x -> x)
+        |> Core.keep identifier
+        |> Core.skip (String.scalar ':')
+
     Core.const (\name -> \ts -> (name, ts))
-    |> Core.keep defName
+    |> Core.keep d
     |> Core.skip hWhitespace
     |> Core.keep (Core.many block)
     |> Core.skip hWhitespace
@@ -76,7 +81,10 @@ expect
     String.parseStr hTerms "\t   false + -  []  "
     == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
 
-defName =
+identifier =
+    dbg
+        "identifier"
+
     check = \str ->
         converted =
             when Str.fromUtf8 str is
@@ -84,31 +92,24 @@ defName =
                 Err _ -> crash "utf8 conversion error"
 
         if
-            isNotAlphaNumeric str
-        then
-            Err "'\(converted)' must be alphanumeric"
-        else if
             List.contains reserved converted
         then
             Err "'\(converted)' is a reserved word"
         else
             Ok converted
 
-    name = Core.chompUntil ':' |> Core.map check |> Core.flatten
+    isAlphaNumeric = \c -> List.contains alphaNumeric c
 
-    Core.const (\x -> x)
-    |> Core.keep name
-    |> Core.skip (String.scalar ':')
+    Core.chompWhile isAlphaNumeric
+    |> Core.map check
+    |> Core.flatten
 
-# isAlphaNumeric : List U8 -> Bool
-isNotAlphaNumeric = \str ->
+# alphaNumeric : List U8
+alphaNumeric =
     digits = List.range { start: At 48, end: At 57 }
     caps = List.range { start: At 65, end: At 90 }
     lowers = List.range { start: At 97, end: At 122 }
-    alphaNumeric = List.join [digits, caps, lowers]
-
-    List.any str \c ->
-        alphaNumeric |> List.contains c |> Bool.not
+    List.join [digits, caps, lowers]
 
 terms =
     block =
@@ -127,7 +128,13 @@ term =
         quotation,
         string,
     ]
-    List.concat builtins otherTerms |> Core.oneOf
+    List.concat builtins otherTerms
+    |> Core.oneOf
+# |> Core.alt lazyIdentifier
+
+lazyIdentifier =
+    Core.buildPrimitiveParser \input ->
+        Core.parsePartial (identifier |> Core.map Def) input
 
 expect String.parseStr term "quote" == Ok (Builtin "quote")
 expect String.parseStr term "true" == Ok (Builtin "true")
@@ -178,15 +185,18 @@ string =
     |> Core.keep (Core.chompWhile isNotQuote)
     |> Core.skip (String.string "\"")
 
+expect
+    String.parseStr string "\"a string\"" == Ok (String "a string")
+
 # quote : Parser RawStr Term
 quotation =
-    Core.buildPrimitiveParser
-        (\input -> Core.parsePartial
-                (
-                    Core.between hTerms (String.scalar '[') (String.scalar ']')
-                    |> Core.map (\list -> Quotation list)
-                )
-                input)
+    Core.buildPrimitiveParser \input ->
+        Core.parsePartial
+            (
+                Core.between hTerms (String.scalar '[') (String.scalar ']')
+                |> Core.map (\list -> Quotation list)
+            )
+            input
 expect
     String.parseStr quotation "[]"
     == Ok (Quotation [])

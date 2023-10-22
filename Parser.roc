@@ -82,9 +82,6 @@ expect
     == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
 
 identifier =
-    dbg
-        "identifier"
-
     check = \str ->
         converted =
             when Str.fromUtf8 str is
@@ -92,6 +89,10 @@ identifier =
                 Err _ -> crash "utf8 conversion error"
 
         if
+            Str.isEmpty converted
+        then
+            Err "identifiers must contain at least one character"
+        else if
             List.contains reserved converted
         then
             Err "'\(converted)' is a reserved word"
@@ -103,6 +104,10 @@ identifier =
     Core.chompWhile isAlphaNumeric
     |> Core.map check
     |> Core.flatten
+
+expect String.parseStr identifier "foo78" == Ok "foo78"
+expect String.parseStr identifier "foo_" |> Result.isErr
+expect String.parseStr identifier "" |> Result.isErr
 
 # alphaNumeric : List U8
 alphaNumeric =
@@ -130,18 +135,14 @@ term =
     ]
     List.concat builtins otherTerms
     |> Core.oneOf
-# |> Core.alt lazyIdentifier
-
-lazyIdentifier =
-    Core.buildPrimitiveParser \input ->
-        Core.parsePartial (identifier |> Core.map Def) input
+    |> Core.alt (identifier |> Core.map Def)
 
 expect String.parseStr term "quote" == Ok (Builtin "quote")
 expect String.parseStr term "true" == Ok (Builtin "true")
 expect String.parseStr term "789" == Ok (Number 789)
 expect String.parseStr term "[dup]" == Ok (Quotation [Builtin "dup"])
 expect String.parseStr term "[dup" |> Result.isErr
-expect String.parseStr term "aldfasdlkfj" |> Result.isErr
+expect String.parseStr term "unknown" == Ok (Def "unknown")
 
 builtins =
     toParser = \s -> String.string s |> Core.map Builtin

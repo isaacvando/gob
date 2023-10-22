@@ -145,7 +145,6 @@ stepBuiltin = \stack, p, name ->
 
         "true" -> Ok (List.append stack (Builtin "true"), p)
         "false" -> Ok (List.append stack (Builtin "false"), p)
-
         _ -> Err Exception
 
 dropLast2 : List a -> List a

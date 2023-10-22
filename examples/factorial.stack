@@ -1,4 +1,4 @@
 # Factorial of 7
 7 dup
 [swap dig 1 - dup 0 = [dig drop drop] [dup dig * dig dup apply] branch apply] 
-swap dig 1 - dup 0 = [dig drop drop] [dup dig * dig dup apply] branch apply
+dup apply

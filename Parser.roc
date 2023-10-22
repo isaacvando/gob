@@ -5,7 +5,11 @@ interface Parser
         parser.String.{ RawStr },
     ]
 
-Program : { defs : Dict Str (List Term), body : List Term }
+Program : {
+    defs : Dict Str (List Term),
+    body : List Term,
+}
+
 Stack : List Term
 Term : [
     Number Nat,
@@ -186,15 +190,14 @@ quotation =
 expect
     String.parseStr quotation "[]"
     == Ok (Quotation [])
-expect 
+expect
     String.parseStr quotation "foo" |> Result.isErr
 expect
     out = String.parseStr quotation "[true]"
     out == Ok (Quotation [Builtin "true"])
 expect
     String.parseStr quotation "[ false 7 + - [] ]"
-    == Ok (Quotation [ Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
-    
+    == Ok (Quotation [Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
 
 # isWhitespace : U8 -> Bool
 isWhitespace = \char ->

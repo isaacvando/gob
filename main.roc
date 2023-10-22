@@ -54,8 +54,6 @@ step = \stack, program ->
             when term is
                 Number x -> Ok (List.append stack (Number x), p)
                 String x -> Ok (List.append stack (String x), p)
-                True -> Ok (List.append stack True, p)
-                False -> Ok (List.append stack False, p)
                 Quotation _ -> Ok (stack |> List.append term, p)
                 Builtin s -> stepBuiltin stack p s
                 _ -> Err Exception
@@ -119,14 +117,14 @@ stepBuiltin = \stack, p, name ->
 
         "branch" ->
             when stack is
-                [.., True, branch, _] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
-                [.., False, _, branch] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                [.., Builtin "true", branch, _] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
+                [.., Builtin "false", _, branch] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
                 _ -> Err Exception
 
         "=" ->
             when stack is
                 [.., x, y] ->
-                    toBool = \b -> if b then True else False
+                    toBool = \b -> if b then Builtin "true" else Builtin "false"
                     Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
 
                 _ ->
@@ -144,6 +142,9 @@ stepBuiltin = \stack, p, name ->
             when stack is
                 [.., x] -> Ok (stack |> List.dropLast, p)
                 _ -> Err Exception
+
+        "true" -> Ok (List.append stack (Builtin "true"), p)
+        "false" -> Ok (List.append stack (Builtin "false"), p)
 
         _ -> Err Exception
 
@@ -168,8 +169,6 @@ showTerm = \term ->
     when term is
         Number x -> Num.toStr x
         String s -> "\"\(s)\""
-        True -> "true"
-        False -> "false"
         Quotation prog -> "[\(showTerms prog)]"
         Builtin s -> s
         _ -> "catchall"

@@ -10,8 +10,6 @@ Stack : List Term
 Term : [
     Number Nat,
     String Str,
-    True,
-    False,
     Quotation (List Term),
     Builtin Str,
     Def Str,
@@ -71,8 +69,8 @@ hTerms =
     |> Core.skip hWhitespace
 
 expect
-    String.parseStr hTerms "\t  true  false + -  []  "
-    == Ok [True, False, Builtin "+", Builtin "-", Quotation []]
+    String.parseStr hTerms "\t   false + -  []  "
+    == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
 
 defName =
     check = \str ->
@@ -122,10 +120,17 @@ terms =
 term =
     otherTerms = [
         number,
-        quote,
+        quotation,
         string,
     ]
     List.concat builtins otherTerms |> Core.oneOf
+
+expect String.parseStr term "quote" == Ok (Builtin "quote")
+expect String.parseStr term "true" == Ok (Builtin "true")
+expect String.parseStr term "789" == Ok (Number 789)
+expect String.parseStr term "[dup]" == Ok (Quotation [Builtin "dup"])
+expect String.parseStr term "[dup" |> Result.isErr
+expect String.parseStr term "aldfasdlkfj" |> Result.isErr
 
 builtins =
     toParser = \s -> String.string s |> Core.map Builtin
@@ -153,6 +158,9 @@ reserved = [
 number =
     String.digits |> Core.map Number
 
+expect String.parseStr number "12345" == Ok (Number 12345)
+expect String.parseStr number "aldkfadlkfj" |> Result.isErr
+
 string =
     toStr = \list ->
         when Str.fromUtf8 list is
@@ -167,7 +175,7 @@ string =
     |> Core.skip (String.string "\"")
 
 # quote : Parser RawStr Term
-quote =
+quotation =
     Core.buildPrimitiveParser
         (\input -> Core.parsePartial
                 (
@@ -176,14 +184,17 @@ quote =
                 )
                 input)
 expect
-    String.parseStr quote "[]"
+    String.parseStr quotation "[]"
     == Ok (Quotation [])
+expect 
+    String.parseStr quotation "foo" |> Result.isErr
 expect
-    String.parseStr quote "[true]"
-    == Ok (Quotation [True])
+    out = String.parseStr quotation "[true]"
+    out == Ok (Quotation [Builtin "true"])
 expect
-    String.parseStr quote "[true false + - [] ]"
-    == Ok (Quotation [True, False, Builtin "+", Builtin "-", Quotation []])
+    String.parseStr quotation "[ false 7 + - [] ]"
+    == Ok (Quotation [ Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
+    
 
 # isWhitespace : U8 -> Bool
 isWhitespace = \char ->

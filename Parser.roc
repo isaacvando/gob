@@ -9,7 +9,6 @@ Program : {
     defs : Dict Str (List Term),
     body : List Term,
 }
-
 Stack : List Term
 Term : [
     Number Nat,

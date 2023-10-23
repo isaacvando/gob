@@ -9,8 +9,8 @@ app "main"
         pf.File,
         pf.Arg,
         pf.Path,
-        parser.Core,
-        parser.String,
+        parser.Core, # must be imported here to be used by Parser.roc
+        parser.String, # must be imported here to be used by Parser.roc
         Parser.{ Program, Stack, Term },
     ]
     provides [main] to pf
@@ -40,119 +40,139 @@ run = \input ->
 
 interpret = \(stack, program) ->
     _ <- showExecution stack program.body |> Stdout.line |> Task.await
-    when step stack program is
-        Err EndOfProgram -> Done (Ok {}) |> Task.ok
-        Err Exception -> Done (Err "Uh oh, something went wrong!") |> Task.ok
-        Ok state -> Step state |> Task.ok
+    result =
+        when step stack program is
+            Ok state -> Step state
+            Err err -> Done (handleStepError err)
 
-step : Stack, Program -> Result (Stack, Program) [EndOfProgram, Exception]
+    result |> Task.ok
+
+handleStepError : StepError -> Result {} Str
+handleStepError = \err ->
+    when err is
+        EndOfProgram -> Ok {}
+        Arity name n ->
+            when n is
+                1 -> Err "Uh oh, \(name) expects there to be at least 1 element on the stack but there weren't any."
+                _ -> Err "Uh oh, \(name) expects there to be at least \(Num.toStr n) elements on the stack but there weren't enough."
+
+        TypeMismatch name -> Err "Uh oh, \(name) can't operate on that kind of arguments."
+        UnknownName name -> Err "Uh oh, I don't know anything named '\(name)'."
+
+StepError : [
+    EndOfProgram,
+    UnknownName Str,
+    Arity Str Nat,
+    TypeMismatch Str,
+]
+
+step : Stack, Program -> Result (Stack, Program) StepError
 step = \stack, program ->
-    p = {program & body: List.dropFirst program.body }
+    p = { program & body: List.dropFirst program.body }
     when List.first program.body is
         Err _ -> Err EndOfProgram
         Ok term ->
             when term is
-                Number x -> Ok (List.append stack (Number x), p)
-                String x -> Ok (List.append stack (String x), p)
+                Number _ -> Ok (stack |> List.append term, p)
+                String _ -> Ok (stack |> List.append term, p)
                 Quotation _ -> Ok (stack |> List.append term, p)
                 Builtin s -> stepBuiltin stack p s
-                Def s -> when Dict.get program.defs s is
-                    Err _ -> Err Exception
-                    Ok ts -> Ok (stack, {p & body: List.concat ts p.body})
-                _ -> Err Exception
+                Def name ->
+                    when Dict.get program.defs name is
+                        Err _ -> Err (UnknownName name)
+                        Ok ts -> Ok (stack, { p & body: List.concat ts p.body })
 
-stepBuiltin : Stack, Program, Str -> Result (Stack, Program) [EndOfProgram, Exception]
+stepBuiltin : Stack, Program, Str -> Result (Stack, Program) StepError
 stepBuiltin = \stack, p, name ->
     when name is
         "+" ->
             when stack is
                 [.., Number x, Number y] ->
-                    s = stack |> dropLast2 |> List.append (Number (x + y))
-                    Ok (s, p)
-
-                _ -> Err Exception
+                        Ok (stack |> dropLast 2 |> List.append (Number (x + y)), p)
+                [.., _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 2)
 
         "-" ->
             when stack is
                 [.., Number x, Number y] ->
-                    s = stack |> dropLast2 |> List.append (Number (x - y))
-                    Ok (s, p)
-
-                _ -> Err Exception
+                    Ok (stack |> dropLast 2 |> List.append (Number (x - y)), p)
+                [.., _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 2)
 
         "*" ->
             when stack is
                 [.., Number x, Number y] ->
-                    s = stack |> dropLast2 |> List.append (Number (x * y))
+                    s = stack |> dropLast 2 |> List.append (Number (x * y))
                     Ok (s, p)
-
-                _ -> Err Exception
+                [.., _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 2)
 
         "dup" ->
             when stack is
                 [.., x] -> Ok (List.append stack x, p)
-                _ -> Err Exception
+                _ -> Err (Arity name 1)
 
         "swap" ->
             when stack is
-                [.., x, y] -> Ok (stack |> dropLast2 |> List.concat [y, x], p)
-                _ -> Err Exception
+                [.., x, y] -> Ok (stack |> dropLast 2 |> List.concat [y, x], p)
+                _ -> Err (Arity name 2)
 
         "dig" ->
             when stack is
-                [.., x, y, z] -> Ok (stack |> dropLast2 |> List.dropLast |> List.concat [y, z, x], p)
-                _ -> Err Exception
+                [.., x, y, z] -> Ok (stack |> dropLast 3 |> List.concat [y, z, x], p)
+                _ -> Err (Arity name 3)
 
         "apply" ->
             when stack is
-                [.., Quotation ts] -> Ok (stack |> List.dropLast, {p & body: List.concat ts p.body })
-                _ -> Err Exception
+                [.., Quotation ts] -> Ok (stack |> List.dropLast, { p & body: List.concat ts p.body })
+                [.., _] -> Err (TypeMismatch name)
+                [] -> Err (Arity name 1)
 
         "repeat" ->
             when stack is
-                [.., t, Number x] -> Ok (stack |> List.dropLast |> List.dropLast |> List.concat (List.repeat t x), p)
-                _ -> Err Exception
+                [.., t, Number x] -> Ok (stack |> dropLast 2 |> List.concat (List.repeat t x), p)
+                [.., _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 2)
 
         "compose" ->
             when stack is
-                [.., Quotation x, Quotation y] -> Ok (stack |> List.dropLast |> List.dropLast |> List.append (Quotation (List.concat x y)), p)
-                _ -> Err Exception
+                [.., Quotation x, Quotation y] -> Ok (stack |> dropLast 2 |> List.append (Quotation (List.concat x y)), p)
+                [.., _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 2)
 
         "branch" ->
             when stack is
-                [.., Builtin "true", branch, _] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
-                [.., Builtin "false", _, branch] -> Ok (stack |> List.dropLast |> List.dropLast |> List.dropLast |> List.append branch, p)
-                _ -> Err Exception
+                [.., Builtin "true", branch, _] -> Ok (stack |> dropLast 3 |> List.append branch, p)
+                [.., Builtin "false", _, branch] -> Ok (stack |> dropLast 3 |> List.append branch, p)
+                [.., _, _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 3)
 
         "=" ->
             when stack is
                 [.., x, y] ->
                     toBool = \b -> if b then Builtin "true" else Builtin "false"
-                    Ok (stack |> List.dropLast |> List.dropLast |> List.append (toBool (x == y)), p)
-
-                _ ->
-                    dbg
-                        stack
-
-                    Err Exception
+                    Ok (stack |> dropLast 2 |> List.append (toBool (x == y)), p)
+                _ -> Err (Arity name 2)
 
         "quote" ->
             when stack is
                 [.., x] -> Ok (stack |> List.dropLast |> List.append (Quotation [x]), p)
-                _ -> Err Exception
+                _ -> Err (Arity name 1)
 
         "drop" ->
             when stack is
-                [.., x] -> Ok (stack |> List.dropLast, p)
-                _ -> Err Exception
+                [.., _] -> Ok (stack |> List.dropLast, p)
+                _ -> Err (Arity name 1)
 
         "true" -> Ok (List.append stack (Builtin "true"), p)
         "false" -> Ok (List.append stack (Builtin "false"), p)
-        _ -> Err Exception
+        _ -> crash "***crash*** There was either an error during parsing or \(name) hasn't been implemented yet."
 
-dropLast2 : List a -> List a
-dropLast2 = \list ->
-    list |> List.dropLast |> List.dropLast
+dropLast : List elem, Nat -> List elem
+dropLast = \list, n ->
+    remaining = Num.subSaturated (List.len list) n
+
+    List.takeFirst list remaining
 
 showExecution : Stack, List Term -> Str
 showExecution = \stack, program ->

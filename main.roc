@@ -1,4 +1,4 @@
-app "main"
+app "stack"
     packages {
         pf: "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
         parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.1.0/vPU-UZbWGIXsAfcJvAnmU3t3SWlHoG_GauZpqzJiBKA.tar.br",
@@ -20,26 +20,28 @@ main =
     args <- Arg.list |> Task.await
     when List.get args 1 is
         Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a stack program."
-        Ok arg ->
-            read = Path.fromStr arg |> File.readUtf8
-            Task.attempt read \result ->
-                when result is
-                    Err _ -> Stdout.line "I wasn't able to read from '\(arg)'"
-                    Ok file -> run file
+        Ok path ->
+            result <- Path.fromStr path |> File.readUtf8 |> Task.attempt
+            when result is
+                Err _ -> Stdout.line "I wasn't able to read from '\(path)'"
+                Ok file ->
+                    config = List.contains args "--debug"
+                    run file config
+
+Config : Bool
 
 # Execution
-run : Str -> Task {} I32
-run = \input ->
+run : Str, Config -> Task {} I32
+run = \input, config ->
     when Parser.parse input is
         Err msg -> Stdout.line msg
         Ok prog ->
-            msg <- Task.loop ([], prog) interpret |> Task.await
-            when msg is
-                Ok {} -> Task.ok {}
-                Err m -> Stdout.line m
+            msg <- Task.loop ([], prog) (\x -> interpret x config) |> Task.await
+            Stdout.line msg
 
-interpret = \(stack, program) ->
-    _ <- showExecution stack program.body |> Stdout.line |> Task.await
+interpret = \(stack, program), config ->
+    task = if config then showExecution stack program.body |> Stdout.line else Task.ok {}
+    _ <- Task.await task
     result =
         when step stack program is
             Ok state -> Step state
@@ -47,20 +49,20 @@ interpret = \(stack, program) ->
 
     result |> Task.ok
 
-handleStepError : StepError -> Result {} Str
+handleStepError : StepError -> Str
 handleStepError = \err ->
     when err is
-        EndOfProgram -> Ok {}
+        EndOfProgram stack -> showTerms stack
         Arity name n ->
             when n is
-                1 -> Err "Uh oh, \(name) expects there to be at least 1 element on the stack but there weren't any."
-                _ -> Err "Uh oh, \(name) expects there to be at least \(Num.toStr n) elements on the stack but there weren't enough."
+                1 -> "Uh oh, \(name) expects there to be at least 1 element on the stack but there weren't any."
+                _ -> "Uh oh, \(name) expects there to be at least \(Num.toStr n) elements on the stack but there weren't enough."
 
-        TypeMismatch name -> Err "Uh oh, \(name) can't operate on that kind of arguments."
-        UnknownName name -> Err "Uh oh, I don't know anything named '\(name)'."
+        TypeMismatch name -> "Uh oh, \(name) can't operate on that kind of arguments."
+        UnknownName name -> "Uh oh, I don't know anything named '\(name)'."
 
 StepError : [
-    EndOfProgram,
+    EndOfProgram Stack,
     UnknownName Str,
     Arity Str Nat,
     TypeMismatch Str,
@@ -70,7 +72,7 @@ step : Stack, Program -> Result (Stack, Program) StepError
 step = \stack, program ->
     p = { program & body: List.dropFirst program.body }
     when List.first program.body is
-        Err _ -> Err EndOfProgram
+        Err _ -> Err (EndOfProgram stack)
         Ok term ->
             when term is
                 Number _ -> Ok (stack |> List.append term, p)
@@ -88,7 +90,8 @@ stepBuiltin = \stack, p, name ->
         "+" ->
             when stack is
                 [.., Number x, Number y] ->
-                        Ok (stack |> dropLast 2 |> List.append (Number (x + y)), p)
+                    Ok (stack |> dropLast 2 |> List.append (Number (x + y)), p)
+
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
@@ -96,6 +99,7 @@ stepBuiltin = \stack, p, name ->
             when stack is
                 [.., Number x, Number y] ->
                     Ok (stack |> dropLast 2 |> List.append (Number (x - y)), p)
+
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
@@ -104,6 +108,7 @@ stepBuiltin = \stack, p, name ->
                 [.., Number x, Number y] ->
                     s = stack |> dropLast 2 |> List.append (Number (x * y))
                     Ok (s, p)
+
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
@@ -152,6 +157,7 @@ stepBuiltin = \stack, p, name ->
                 [.., x, y] ->
                     toBool = \b -> if b then Builtin "true" else Builtin "false"
                     Ok (stack |> dropLast 2 |> List.append (toBool (x == y)), p)
+
                 _ -> Err (Arity name 2)
 
         "quote" ->

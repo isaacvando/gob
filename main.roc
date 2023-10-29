@@ -5,10 +5,12 @@ app "stack"
     }
     imports [
         pf.Stdout,
+        pf.Stdin,
         pf.Task.{ Task },
         pf.File,
         pf.Arg,
         pf.Path,
+        pf.Tty,
         parser.Core, # must be imported here to be used by Parser.roc
         parser.String, # must be imported here to be used by Parser.roc
         Parser.{ Program, Stack, Term },
@@ -25,10 +27,14 @@ main =
             when result is
                 Err _ -> Stdout.line "I wasn't able to read from '\(path)'"
                 Ok file ->
-                    config = List.contains args "--debug"
+                    config = if List.contains args "--step"
+                        then Step
+                        else if List.contains args "--debug"
+                        then Debug
+                        else None
                     run file config
 
-Config : Bool
+Config : [Debug, Step, None]
 
 # Execution
 run : Str, Config -> Task {} I32
@@ -40,7 +46,12 @@ run = \input, config ->
             Stdout.line msg
 
 interpret = \(stack, program), config ->
-    task = if config then showExecution stack program.body |> Stdout.line else Task.ok {}
+    task = when config is
+        Debug -> showExecution stack program.body |> Stdout.line
+        Step -> 
+            _ <- showExecution stack program.body |> Stdout.write |> Task.await
+            Stdin.line |> Task.map \_ -> {}
+        None -> Task.ok {}
     _ <- Task.await task
     result =
         when step stack program is

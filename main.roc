@@ -1,6 +1,7 @@
 app "stack"
     packages {
-        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
+        # pf: "https://github.com/isaacvando/basic-cli/releases/download/nightly/woS2kjV3p-arPk2Hiq_aZoMYFPQpLm9Pfa7RRnbqwCo.tar.br",
+        pf: "./platform/main.roc",
         parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.1.0/vPU-UZbWGIXsAfcJvAnmU3t3SWlHoG_GauZpqzJiBKA.tar.br",
     }
     imports [
@@ -10,7 +11,6 @@ app "stack"
         pf.File,
         pf.Arg,
         pf.Path,
-        pf.Tty,
         parser.Core, # must be imported here to be used by Parser.roc
         parser.String, # must be imported here to be used by Parser.roc
         Parser.{ Program, Stack, Term },
@@ -27,31 +27,64 @@ main =
             when result is
                 Err _ -> Stdout.line "I wasn't able to read from '\(path)'"
                 Ok file ->
-                    config = if List.contains args "--step"
-                        then Step
-                        else if List.contains args "--debug"
-                        then Debug
-                        else None
-                    run file config
+                    linesTask = if List.contains args "--pipe" then Task.loop "" readStdin else Task.ok ""
+                    stdin <- Task.await linesTask
+                    config = if
+                            List.contains args "--step"
+                        then
+                            Step
+                        else if
+                            List.contains args "--debug"
+                        then
+                            Debug
+                        else
+                            None
+                    run file stdin config
+
+readStdin = \lines ->
+    result <- Stdin.line |> Task.await
+    state =
+        when result is
+            Input line -> Step (Str.joinWith [lines, line] "\n")
+            End -> Done lines
+    Task.ok state
 
 Config : [Debug, Step, None]
 
 # Execution
-run : Str, Config -> Task {} I32
-run = \input, config ->
-    when Parser.parse input is
+run : Str, Str, Config -> Task {} I32
+run = \file, stdin, config ->
+    when Parser.parse file is
         Err msg -> Stdout.line msg
-        Ok prog ->
-            msg <- Task.loop ([], prog) (\x -> interpret x config) |> Task.await
-            Stdout.line msg
+        Ok fileProg ->
+            when Parser.parse stdin is
+                Err msg -> Stdout.line msg
+                Ok stdinProg ->
+                    when compose stdinProg fileProg is
+                        Err msg -> Stdout.line msg
+                        Ok prog ->
+                            msg <- Task.loop ([], prog) (\x -> interpret x config) |> Task.await
+                            Stdout.line msg
+
+compose : Program, Program -> Result Program Str
+compose = \x, y ->
+    isOverlap = Dict.keys x.defs |> List.any \k -> Dict.contains y.defs k
+    if
+        isOverlap
+    then
+        Err "I found a duplicate key in the piped input"
+    else
+        Ok { defs: Dict.insertAll x.defs y.defs, body: List.concat x.body y.body }
 
 interpret = \(stack, program), config ->
-    task = when config is
-        Debug -> showExecution stack program.body |> Stdout.line
-        Step -> 
-            _ <- showExecution stack program.body |> Stdout.write |> Task.await
-            Stdin.line |> Task.map \_ -> {}
-        None -> Task.ok {}
+    task =
+        when config is
+            Debug -> showExecution stack program.body |> Stdout.line
+            Step ->
+                _ <- showExecution stack program.body |> Stdout.write |> Task.await
+                Stdin.line |> Task.map \_ -> {}
+
+            None -> Task.ok {}
     _ <- Task.await task
     result =
         when step stack program is

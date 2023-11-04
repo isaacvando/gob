@@ -21,7 +21,7 @@ main : Task {} I32
 main =
     args <- Arg.list |> Task.await
     when List.get args 1 is
-        Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a stack program."
+        Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a .gob file."
         Ok path ->
             result <- Path.fromStr path |> File.readUtf8 |> Task.attempt
             when result is

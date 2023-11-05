@@ -3,3 +3,4 @@ main
 target
 gob
 input.txt
+*.o

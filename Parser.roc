@@ -164,6 +164,7 @@ reserved = [
     "branch",
     "true",
     "false",
+    "split",
 ]
 
 number =

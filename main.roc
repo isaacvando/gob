@@ -29,17 +29,20 @@ main =
                 Ok file ->
                     linesTask = if List.contains args "--pipe" then Task.loop "" readStdin else Task.ok ""
                     stdin <- Task.await linesTask
-                    config = if
-                            List.contains args "--step"
-                        then
-                            Step
-                        else if
-                            List.contains args "--debug"
-                        then
-                            Debug
-                        else
-                            None
-                    run file stdin config
+                    run file stdin (toConfig args)
+
+
+toConfig = \args ->
+    if List.contains args "--step"
+    then
+        Step
+    else if
+        List.contains args "--debug"
+    then
+        Debug
+    else
+        None
+
 
 readStdin = \lines ->
     result <- Stdin.line |> Task.await
@@ -213,6 +216,15 @@ stepBuiltin = \stack, p, name ->
             when stack is
                 [.., _] -> Ok (stack |> List.dropLast 1, p)
                 _ -> Err (Arity name 1)
+
+        "split" ->
+            when stack is
+                [.., String x, String y] ->
+                    chunks = Str.split x y |> List.map String
+                    Ok (stack |> List.dropLast 2 |> List.concat chunks, p)
+
+                [.., _, _] -> Err (TypeMismatch name)
+                _ -> Err (Arity name 2)
 
         "true" -> Ok (List.append stack (Builtin "true"), p)
         "false" -> Ok (List.append stack (Builtin "false"), p)

@@ -1,0 +1,3 @@
+# To run, try `echo "\"$(cat 1.txt)\"" | gob day1.gob --pipe`
+
+"\n" split

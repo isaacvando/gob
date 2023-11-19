@@ -1,7 +1,7 @@
 app "stack"
     packages {
         # pf: "https://github.com/isaacvando/basic-cli/releases/download/nightly/woS2kjV3p-arPk2Hiq_aZoMYFPQpLm9Pfa7RRnbqwCo.tar.br",
-        pf: "./platform/main.roc",
+        pf: "./platform/main.roc", # This is temporary until a new release of basic-cli is made
         parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.2.0/dJQSsSmorujhiPNIvJKlQoI92RFIG_JQwUfIxZsCSwE.tar.br",
     }
     imports [
@@ -20,28 +20,47 @@ app "stack"
 main : Task {} I32
 main =
     args <- Arg.list |> Task.await
-    when List.get args 1 is
-        Err _ -> Stdout.line "I couldn't find any command line arguments. Please try again with the path to a .gob file."
-        Ok path ->
+    when args is
+        [] | [_] | [_, "--help"] | [_, "-h"] -> Stdout.line helpMessage
+        [_, path, ..] ->    
             result <- Path.fromStr path |> File.readUtf8 |> Task.attempt
             when result is
                 Err _ -> Stdout.line "I wasn't able to read from '\(path)'"
                 Ok file ->
-                    linesTask = if List.contains args "--pipe" then Task.loop "" readStdin else Task.ok ""
-                    stdin <- Task.await linesTask
+                    # TODO: use a real command line arg parser to make the cli more robust once one is available
+                    pipeInputTask = if contains args "--pipe" "-p" then Task.loop "" readStdin else Task.ok ""
+                    stdin <- Task.await pipeInputTask
                     run file stdin (toConfig args)
 
+
+contains = \list, x, y -> 
+    List.contains list x || List.contains list y
+
+helpMessage = 
+    """
+    The gob-lang cli
+
+    usage: gob <filepath>.gob [option]
+
+    options:
+        -h, --help      print this message
+        -d, --debug     print all intermediate states
+        -s, --step      print the current state and wait for a key press to print the next state
+
+    examples:
+        gob examples/factorial.gob
+        gob advent_of_code.gob --debug
+        gob program.gob -s
+    """
+
+Config : [Step, Debug, None]
+
 toConfig = \args ->
-    if
-        List.contains args "--step"
-    then
-        Step
-    else if
-        List.contains args "--debug"
-    then
-        Debug
-    else
-        None
+    if contains args "--step" "-s"
+    then Step
+    else if contains args "--debug" "-d"
+    then Debug
+    else None
 
 readStdin = \lines ->
     result <- Stdin.line |> Task.await
@@ -51,9 +70,6 @@ readStdin = \lines ->
             End -> Done lines
     Task.ok state
 
-Config : [Debug, Step, None]
-
-# Execution
 run : Str, Str, Config -> Task {} I32
 run = \file, stdin, config ->
     when Parser.parse file is
@@ -68,11 +84,12 @@ run = \file, stdin, config ->
                             msg <- Task.loop ([], prog) (\x -> interpret x config) |> Task.await
                             Stdout.line msg
 
+
+# Merge the program read from the file and the one read from stdin into a single one
 compose : Program, Program -> Result Program Str
 compose = \x, y ->
-    isOverlap = Dict.keys x.defs |> List.any \k -> Dict.contains y.defs k
     if
-        isOverlap
+        Dict.keys x.defs |> List.any \k -> Dict.contains y.defs k
     then
         Err "I found a duplicate key in the piped input"
     else
@@ -86,7 +103,7 @@ interpret = \(stack, program), config ->
                 _ <- showExecution stack program.body |> Stdout.write |> Task.await
                 Stdin.line |> Task.map \_ -> {}
 
-            None -> Task.ok {}
+            _ -> Task.ok {}
     _ <- Task.await task
     result =
         when step stack program is
@@ -227,6 +244,7 @@ stepBuiltin = \stack, p, name ->
 
         "true" -> Ok (List.append stack (Builtin "true"), p)
         "false" -> Ok (List.append stack (Builtin "false"), p)
+        # TODO: refactor the builtins to be tags instead of strings which would avoid the need for this.
         _ -> crash "***crash*** There was either an error during parsing or \(name) hasn't been implemented yet."
 
 showExecution : Stack, List Term -> Str
@@ -241,7 +259,6 @@ showTerms = \terms ->
     |> List.map showTerm
     |> Str.joinWith " "
 
-# showTerm : Term -> Str
 showTerm = \term ->
     when term is
         Number x -> Num.toStr x
@@ -249,5 +266,3 @@ showTerm = \term ->
         Quotation prog -> "[\(showTerms prog)]"
         Builtin s -> s
         Def s -> s
-        _ -> "catchall"
-

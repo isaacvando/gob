@@ -31,9 +31,9 @@ main =
                     stdin <- Task.await linesTask
                     run file stdin (toConfig args)
 
-
 toConfig = \args ->
-    if List.contains args "--step"
+    if
+        List.contains args "--step"
     then
         Step
     else if
@@ -42,7 +42,6 @@ toConfig = \args ->
         Debug
     else
         None
-
 
 readStdin = \lines ->
     result <- Stdin.line |> Task.await

@@ -25,6 +25,7 @@ parse = \input ->
         Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was:\n \(remaining)"
         Ok p -> Ok p
 
+# Remove comments and blank space
 clean : Str -> Str
 clean = \input ->
     isComment = \line -> Str.trimStart line
@@ -40,13 +41,12 @@ isBlank = \str ->
     Str.toUtf8 str
     |> List.all isWhitespace
 
-# program : Parser RawStr Program
 program =
     toProgram = \d -> \b ->
             { defs: Dict.fromList d, body: b }
     Core.const toProgram
     |> Core.keep (Core.many def)
-    |> Core.keep terms
+    |> Core.keep (terms whitespace)
 
 def =
     block =
@@ -66,18 +66,9 @@ def =
     |> Core.skip hWhitespace
     |> Core.skip (String.scalar '\n')
 
-hTerms =
-    block =
-        Core.const (\x -> x)
-        |> Core.skip hWhitespace
-        |> Core.keep term
-
-    Core.const (\x -> x)
-    |> Core.keep (Core.many block)
-    |> Core.skip hWhitespace
 
 expect
-    String.parseStr hTerms "\t   false + -  []  "
+    String.parseStr (terms hWhitespace) "\t   false + -  []  "
     == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
 
 identifier =
@@ -108,24 +99,22 @@ expect String.parseStr identifier "foo78" == Ok "foo78"
 expect String.parseStr identifier "foo_" |> Result.isErr
 expect String.parseStr identifier "" |> Result.isErr
 
-# alphaNumeric : List U8
 alphaNumeric =
     digits = List.range { start: At 48, end: At 57 }
     caps = List.range { start: At 65, end: At 90 }
     lowers = List.range { start: At 97, end: At 122 }
     List.join [digits, caps, lowers]
 
-terms =
+terms = \spacer -> 
     block =
         Core.const (\x -> x)
-        |> Core.skip whitespace
+        |> Core.skip spacer
         |> Core.keep term
 
     Core.const (\x -> x)
     |> Core.keep (Core.many block)
-    |> Core.skip whitespace
+    |> Core.skip spacer
 
-# term : Parser RawStr Term
 term =
     otherTerms = [
         number,
@@ -177,7 +166,8 @@ string =
     toStr = \list ->
         when Str.fromUtf8 list is
             Ok s -> String s
-            Err _ -> crash "TODO: don't crash here"
+            # TODO: make this use Core.fail instead of crashing
+            Err _ -> crash "I was unable to convert the contents of a string as utf8"
 
     isNotQuote = \c -> c != '"'
 
@@ -186,15 +176,18 @@ string =
     |> Core.keep (Core.chompWhile isNotQuote)
     |> Core.skip (String.string "\"")
 
+
+
 expect
     String.parseStr string "\"a string\"" == Ok (String "a string")
 
-# quote : Parser RawStr Term
+# buildPrimitiveParser is used here as a work around for a bug that sometimes comes up with recursive parsers such as this
+# https://roc.zulipchat.com/#narrow/stream/231634-beginners/topic/Compiler.20stack.20overflow.20on.20recursive.20parser/near/377685052
 quotation =
     Core.buildPrimitiveParser \input ->
         Core.parsePartial
             (
-                Core.between hTerms (String.scalar '[') (String.scalar ']')
+                Core.between (terms hWhitespace) (String.scalar '[') (String.scalar ']')
                 |> Core.map (\list -> Quotation list)
             )
             input
@@ -210,7 +203,6 @@ expect
     String.parseStr quotation "[ false 7 + - [] ]"
     == Ok (Quotation [Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
 
-# isWhitespace : U8 -> Bool
 isWhitespace = \char ->
     when char is
         ' ' -> Bool.true
@@ -219,7 +211,6 @@ isWhitespace = \char ->
         '\r' -> Bool.true
         _ -> Bool.false
 
-# whitespace : Parser (List U8) (List U8)
 whitespace =
     Core.chompWhile isWhitespace
 

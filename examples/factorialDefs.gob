@@ -1,5 +1,4 @@
 fact: 1 - isZero [drop] [dup dig * swap fact] branch apply
-
 isZero: dup 0 =
 
-7 dup fact
+dup fact

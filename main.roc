@@ -1,7 +1,6 @@
-app "stack"
+app "gob"
     packages {
-        # pf: "https://github.com/isaacvando/basic-cli/releases/download/nightly/woS2kjV3p-arPk2Hiq_aZoMYFPQpLm9Pfa7RRnbqwCo.tar.br",
-        pf: "./platform/main.roc", # This is temporary until a new release of basic-cli is made
+        pf: "./platform/main.roc", # This is temporary until there is anew release of basic-cli
         parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.2.0/dJQSsSmorujhiPNIvJKlQoI92RFIG_JQwUfIxZsCSwE.tar.br",
     }
     imports [

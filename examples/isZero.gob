@@ -1,0 +1,3 @@
+isZero: dup 0 =
+
+7

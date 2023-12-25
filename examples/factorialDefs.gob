@@ -1,4 +1,3 @@
 fact: 1 - isZero [drop] [dup dig * swap fact] branch apply
-isZero: dup 0 =
 
 dup fact

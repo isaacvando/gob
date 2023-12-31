@@ -122,12 +122,14 @@ handleStepError = \err ->
 
         TypeMismatch name -> "Uh oh, \(name) can't operate on that kind of arguments."
         UnknownName name -> "Uh oh, I don't know anything named '\(name)'."
+        ArgMustBePositive name num -> "Whoops, \(name) can't operate on a negative value like \(Num.toStr num)!"
 
 StepError : [
     EndOfProgram Stack,
     UnknownName Str,
     Arity Str Nat,
     TypeMismatch Str,
+    ArgMustBePositive Str I64,
 ]
 
 step : Stack, Program -> Result (Stack, Program) StepError
@@ -197,7 +199,8 @@ stepBuiltin = \stack, p, name ->
 
         "repeat" ->
             when stack is
-                [.. as rest, t, Number x] -> Ok (rest |> List.concat (List.repeat t x), p)
+                [.. as rest, t, Number x] if x > 0 -> Ok (rest |> List.concat (List.repeat t (Num.toNat x)), p)
+                [.. as rest, t, Number x] -> Err (ArgMustBePositive name x)
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 

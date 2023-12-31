@@ -11,7 +11,7 @@ Program : {
 }
 Stack : List Term
 Term : [
-    Number Nat,
+    Number I64,
     String Str,
     Quotation (List Term),
     Builtin Str,
@@ -47,7 +47,12 @@ program =
             { defs: Dict.fromList d, body: b }
     Core.const toProgram
     |> Core.keep (Core.many def)
-    |> Core.keep (terms (Core.many space))
+    |> Core.keep body
+
+body = terms (Core.many space)
+
+# expect 
+#     result = Core.parseStr 
 
 def =
     block =
@@ -116,6 +121,8 @@ terms = \spacer ->
     |> Core.keep (Core.many block)
     |> Core.skip spacer
 
+
+
 term =
     otherTerms = [
         number,
@@ -158,9 +165,17 @@ reserved = [
 ]
 
 number =
-    String.digits |> Core.map Number
+    positive = String.digits |> Core.map \n -> Num.toI64 n |> Number
+    negative = 
+        convert = \n -> Num.toI64 n * -1 |> Number
+        Core.const convert
+            |> Core.skip (String.scalar '-')
+            |> Core.keep String.digits
+
+    Core.alt positive negative
 
 expect String.parseStr number "12345" == Ok (Number 12345)
+expect String.parseStr number "-567" == Ok (Number -567)
 expect String.parseStr number "aldkfadlkfj" |> Result.isErr
 
 string =

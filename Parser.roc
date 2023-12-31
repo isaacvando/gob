@@ -39,19 +39,20 @@ clean = \input ->
 isBlank : Str -> Bool
 isBlank = \str ->
     Str.toUtf8 str
-    |> List.all isWhitespace
+    |> List.all \x -> 
+        List.contains [' ', '\t', '\n'] x
 
 program =
     toProgram = \d -> \b ->
             { defs: Dict.fromList d, body: b }
     Core.const toProgram
     |> Core.keep (Core.many def)
-    |> Core.keep (terms whitespace)
+    |> Core.keep (terms (Core.many space))
 
 def =
     block =
         Core.const (\x -> x)
-        |> Core.skip hWhitespace
+        |> Core.skip (Core.many hSpace)
         |> Core.keep term
 
     d =
@@ -61,14 +62,14 @@ def =
 
     Core.const (\name -> \ts -> (name, ts))
     |> Core.keep d
-    |> Core.skip hWhitespace
+    |> Core.skip (Core.many hSpace)
     |> Core.keep (Core.many block)
-    |> Core.skip hWhitespace
+    |> Core.skip (Core.many hSpace)
     |> Core.skip (String.scalar '\n')
 
 
 expect
-    String.parseStr (terms hWhitespace) "\t   false + -  []  "
+    String.parseStr (terms (Core.many hSpace)) "\t   false + -  []  "
     == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
 
 identifier =
@@ -187,7 +188,7 @@ quotation =
     Core.buildPrimitiveParser \input ->
         Core.parsePartial
             (
-                Core.between (terms hWhitespace) (String.scalar '[') (String.scalar ']')
+                Core.between (terms (Core.many hSpace)) (String.scalar '[') (String.scalar ']')
                 |> Core.map (\list -> Quotation list)
             )
             input
@@ -203,28 +204,15 @@ expect
     String.parseStr quotation "[ false 7 + - [] ]"
     == Ok (Quotation [Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
 
-isWhitespace = \char ->
-    when char is
-        ' ' -> Bool.true
-        '\n' -> Bool.true
-        '\t' -> Bool.true
-        '\r' -> Bool.true
-        _ -> Bool.false
+space =
+    [' ', '\t', '\n']
+    |> List.map String.scalar
+    |> Core.oneOf
 
-whitespace =
-    Core.chompWhile isWhitespace
+hSpace = 
+    [' ', '\t']
+    |> List.map String.scalar
+    |> Core.oneOf
 
-expect String.parseStr whitespace " \t\n" == Ok [' ', '\t', '\n']
-expect String.parseStr whitespace "  \nfoo" |> Result.isErr
-
-isHWhitespace = \char ->
-    when char is
-        ' ' -> Bool.true
-        '\t' -> Bool.true
-        _ -> Bool.false
-
-hWhitespace =
-    Core.chompWhile isHWhitespace
-
-expect String.parseStr hWhitespace " \t" == Ok [' ', '\t']
-expect String.parseStr hWhitespace "  \n" |> Result.isErr
+expect String.parseStr space "\n" |> Result.isOk
+expect String.parseStr hSpace "\n" |> Result.isErr

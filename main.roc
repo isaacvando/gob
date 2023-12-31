@@ -1,7 +1,7 @@
 app "gob"
     packages {
-        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.6.0/QOQW08n38nHHrVVkJNiPIjzjvbR3iMjXeFY5w1aT46w.tar.br",
-        parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.2.0/dJQSsSmorujhiPNIvJKlQoI92RFIG_JQwUfIxZsCSwE.tar.br",
+        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br",
+        parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.3.0/-e3ebWWmlFPfe9fYrr2z1urfslzygbtQQsl69iH1qzQ.tar.br",
     }
     imports [
         pf.Stdout,
@@ -151,25 +151,25 @@ stepBuiltin = \stack, p, name ->
     when name is
         "+" ->
             when stack is
-                [.., Number x, Number y] ->
-                    Ok (stack |> List.dropLast 2 |> List.append (Number (x + y)), p)
+                [.. as rest, Number x, Number y] ->
+                    Ok (rest |> List.append (Number (x + y)), p)
 
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
         "-" ->
             when stack is
-                [.., Number x, Number y] ->
-                    Ok (stack |> List.dropLast 2 |> List.append (Number (x - y)), p)
+                [.. as rest, Number x, Number y] ->
+                    Ok (rest |> List.append (Number (x - y)), p)
 
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
         "*" ->
             when stack is
-                [.., Number x, Number y] ->
-                    s = stack |> List.dropLast 2 |> List.append (Number (x * y))
-                    Ok (s, p)
+                # There is some bug preventing me from pattern matching on rest here. When I add dbg stack, the bug disappears
+                [.., Number x, Number y] -> 
+                    Ok (stack |> List.dropLast 2 |> List.append (Number (x * y)), p)
 
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
@@ -181,62 +181,62 @@ stepBuiltin = \stack, p, name ->
 
         "swap" ->
             when stack is
-                [.., x, y] -> Ok (stack |> List.dropLast 2 |> List.concat [y, x], p)
+                [.. as rest, x, y] -> Ok (rest |> List.concat [y, x], p)
                 _ -> Err (Arity name 2)
 
         "dig" ->
             when stack is
-                [.., x, y, z] -> Ok (stack |> List.dropLast 3 |> List.concat [y, z, x], p)
+                [.. as rest, x, y, z] -> Ok (rest |> List.concat [y, z, x], p)
                 _ -> Err (Arity name 3)
 
         "apply" ->
             when stack is
-                [.., Quotation ts] -> Ok (stack |> List.dropLast 1, { p & body: List.concat ts p.body })
+                [.. as rest, Quotation ts] -> Ok (rest, { p & body: List.concat ts p.body })
                 [.., _] -> Err (TypeMismatch name)
                 [] -> Err (Arity name 1)
 
         "repeat" ->
             when stack is
-                [.., t, Number x] -> Ok (stack |> List.dropLast 2 |> List.concat (List.repeat t x), p)
+                [.. as rest, t, Number x] -> Ok (rest |> List.concat (List.repeat t x), p)
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
         "compose" ->
             when stack is
-                [.., Quotation x, Quotation y] -> Ok (stack |> List.dropLast 2 |> List.append (Quotation (List.concat x y)), p)
+                [.. as rest, Quotation x, Quotation y] -> Ok (rest |> List.append (Quotation (List.concat x y)), p)
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 
         "branch" ->
             when stack is
-                [.., Builtin "true", branch, _] -> Ok (stack |> List.dropLast 3 |> List.append branch, p)
-                [.., Builtin "false", _, branch] -> Ok (stack |> List.dropLast 3 |> List.append branch, p)
+                [.. as rest, Builtin "true", branch, _] -> Ok (rest |> List.append branch, p)
+                [.. as rest, Builtin "false", _, branch] -> Ok (rest |> List.append branch, p)
                 [.., _, _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 3)
 
         "=" ->
             when stack is
-                [.., x, y] ->
+                [.. as rest, x, y] ->
                     toBool = \b -> if b then Builtin "true" else Builtin "false"
-                    Ok (stack |> List.dropLast 2 |> List.append (toBool (x == y)), p)
+                    Ok (rest |> List.append (toBool (x == y)), p)
 
                 _ -> Err (Arity name 2)
 
         "quote" ->
             when stack is
-                [.., x] -> Ok (stack |> List.dropLast 1 |> List.append (Quotation [x]), p)
+                [.. as rest, x] -> Ok (rest |> List.append (Quotation [x]), p)
                 _ -> Err (Arity name 1)
 
         "drop" ->
             when stack is
-                [.., _] -> Ok (stack |> List.dropLast 1, p)
+                [.. as rest, _] -> Ok (rest, p)
                 _ -> Err (Arity name 1)
 
         "split" ->
             when stack is
-                [.., String x, String y] ->
+                [.. as rest, String x, String y] ->
                     chunks = Str.split x y |> List.map String
-                    Ok (stack |> List.dropLast 2 |> List.concat chunks, p)
+                    Ok (rest |> List.concat chunks, p)
 
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
@@ -245,6 +245,7 @@ stepBuiltin = \stack, p, name ->
         "false" -> Ok (List.append stack (Builtin "false"), p)
         # TODO: refactor the builtins to be tags instead of strings which would avoid the need for this.
         _ -> crash "***crash*** There was either an error during parsing or \(name) hasn't been implemented yet."
+
 
 showExecution : Stack, List Term -> Str
 showExecution = \stack, program ->

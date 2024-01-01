@@ -49,33 +49,49 @@ program =
     |> Core.keep (Core.many def)
     |> Core.keep body
 
-body = terms (Core.many space)
+expect
+    input = 
+        """
+        def1: "foo"
+        def2: def1 10
+        10 5 repeat
+        """
+    d = Dict.fromList [("def1", [String "foo"]), ("def2", [Def "def1", Number 10])]
+    b = [Number 10, Number 5, Builtin "repeat"]
 
-# expect 
-#     result = Core.parseStr 
+    result = String.parseStr program input
+    result == Ok { defs: d, body: b }
+
+body = terms (Core.oneOrMore space)
+
+expect 
+    result = String.parseStr body "-10 + 10"
+    result == Ok [Number -10, Builtin "+", Number 10]
+
+expect 
+    result = String.parseStr body "- 10 + 10"
+    result == Ok [Builtin "-", Number 10, Builtin "+", Number 10]
 
 def =
-    block =
-        Core.const (\x -> x)
-        |> Core.skip (Core.many hSpace)
-        |> Core.keep term
-
-    d =
+    defName =
         Core.const (\x -> x)
         |> Core.keep identifier
         |> Core.skip (String.scalar ':')
 
     Core.const (\name -> \ts -> (name, ts))
-    |> Core.keep d
+    |> Core.keep defName
     |> Core.skip (Core.many hSpace)
-    |> Core.keep (Core.many block)
+    |> Core.keep (terms (Core.oneOrMore hSpace))
     |> Core.skip (Core.many hSpace)
     |> Core.skip (String.scalar '\n')
 
+expect 
+    result = String.parseStr def "name: \"foo\" + dup\n"
+    result == Ok ("name", [String "foo", Builtin "+", Builtin "dup"])
 
 expect
-    String.parseStr (terms (Core.many hSpace)) "\t   false + -  []  "
-    == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
+    result = String.parseStr (terms (Core.many hSpace)) "false    \t  + -  []  "
+    result == Ok [Builtin "false", Builtin "+", Builtin "-", Quotation []]
 
 identifier =
     check = \str ->
@@ -112,24 +128,13 @@ alphaNumeric =
     List.join [digits, caps, lowers]
 
 terms = \spacer -> 
-    block =
-        Core.const (\x -> x)
-        |> Core.skip spacer
-        |> Core.keep term
-
-    Core.const (\x -> x)
-    |> Core.keep (Core.many block)
-    |> Core.skip spacer
+    Core.sepBy term spacer
 
 
 
 term =
-    otherTerms = [
-        number,
-        quotation,
-        string,
-    ]
-    List.concat builtins otherTerms
+    [number, quotation, string] 
+    |> List.concat builtins
     |> Core.oneOf
     |> Core.alt (identifier |> Core.map Def)
 
@@ -200,24 +205,29 @@ expect
 # buildPrimitiveParser is used here as a work around for a bug that sometimes comes up with recursive parsers such as this
 # https://roc.zulipchat.com/#narrow/stream/231634-beginners/topic/Compiler.20stack.20overflow.20on.20recursive.20parser/near/377685052
 quotation =
+    bracket = \b -> 
+        Core.const (\_ -> {})
+        |> Core.keep (String.scalar b)
+        |> Core.skip (Core.many hSpace)
+
     Core.buildPrimitiveParser \input ->
         Core.parsePartial
             (
-                Core.between (terms (Core.many hSpace)) (String.scalar '[') (String.scalar ']')
+                Core.between (terms (Core.oneOrMore hSpace)) (bracket '[') (bracket ']')
                 |> Core.map (\list -> Quotation list)
             )
             input
 expect
-    String.parseStr quotation "[]"
-    == Ok (Quotation [])
+    result = String.parseStr quotation "[]"
+    result == Ok (Quotation [])
 expect
     String.parseStr quotation "foo" |> Result.isErr
 expect
     out = String.parseStr quotation "[true]"
     out == Ok (Quotation [Builtin "true"])
 expect
-    String.parseStr quotation "[ false 7 + - [] ]"
-    == Ok (Quotation [Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
+    result = String.parseStr quotation "[ false 7 + - [] ]"
+    result == Ok (Quotation [Builtin "false", Number 7, Builtin "+", Builtin "-", Quotation []])
 
 space =
     [' ', '\t', '\n']

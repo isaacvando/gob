@@ -21,10 +21,10 @@ Everything on the left of the `|` is the current state of the stack and everythi
 More examples can be found in [./examples](./examples). 
 
 ## Features
-The data types Gob currently supports are strings, non-negative integers, booleans, and quotations. 
+The data types Gob currently supports are strings, integers, booleans, and quotations. 
 ```
 "Hello World!"
-1729
+-1729
 true
 [10 445 +]
 ``` 

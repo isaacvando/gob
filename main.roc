@@ -200,7 +200,7 @@ stepBuiltin = \stack, p, name ->
         "repeat" ->
             when stack is
                 [.. as rest, t, Number x] if x > 0 -> Ok (rest |> List.concat (List.repeat t (Num.toNat x)), p)
-                [.., _, Number x] -> Err (ArgMustBePositive name x)
+                [.. as rest, t, Number x] -> Err (ArgMustBePositive name x)
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 

@@ -1,7 +1,7 @@
 app "gob"
     packages {
-        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br",
-        parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.4/yrk4tKd0w9oaxt0s66zrejc6L67Y7B-86BQrL9yjZMY.tar.br",
+        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br",
+        parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.5.2/9VrPjwfQQ1QeSL3CfmWr2Pr9DESdDIXy97pwpuq84Ck.tar.br",
     }
     imports [
         pf.Stdout,
@@ -127,7 +127,7 @@ handleStepError = \err ->
 StepError : [
     EndOfProgram Stack,
     UnknownName Str,
-    Arity Str Nat,
+    Arity Str U64,
     TypeMismatch Str,
     ArgMustBePositive Str I64,
 ]
@@ -199,8 +199,8 @@ stepBuiltin = \stack, p, name ->
 
         "repeat" ->
             when stack is
-                [.., t, Number x] if x > 0 -> Ok (stack |> List.dropLast 2 |> List.concat (List.repeat t (Num.toNat x)), p)
-                [.., t, Number x] -> Err (ArgMustBePositive name x)
+                [.., t, Number x] if x > 0 -> Ok (stack |> List.dropLast 2 |> List.concat (List.repeat t (Num.toU64 x)), p)
+                [.., _, Number x] -> Err (ArgMustBePositive name x)
                 [.., _, _] -> Err (TypeMismatch name)
                 _ -> Err (Arity name 2)
 

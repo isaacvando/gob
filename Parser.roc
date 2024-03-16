@@ -29,7 +29,7 @@ parse = \input ->
 clean : Str -> Str
 clean = \input ->
     isComment = \line -> Str.trimStart line
-        |> Str.startsWithScalar '#'
+        |> Str.startsWith "#"
 
     Str.split input "\n"
     |> List.dropIf isComment
@@ -76,14 +76,14 @@ def =
     defName =
         Core.const (\x -> x)
         |> Core.keep identifier
-        |> Core.skip (String.scalar ':')
+        |> Core.skip (String.codeunit ':')
 
     Core.const (\name -> \ts -> (name, ts))
     |> Core.keep defName
     |> Core.skip (Core.many hSpace)
     |> Core.keep (terms (Core.oneOrMore hSpace))
     |> Core.skip (Core.many hSpace)
-    |> Core.skip (String.scalar '\n')
+    |> Core.skip (String.codeunit '\n')
 
 expect 
     result = String.parseStr def "name: \"foo\" + dup\n"
@@ -174,7 +174,7 @@ number =
     negative = 
         convert = \n -> Num.toI64 n * -1 |> Number
         Core.const convert
-            |> Core.skip (String.scalar '-')
+            |> Core.skip (String.codeunit '-')
             |> Core.keep String.digits
 
     Core.alt positive negative
@@ -207,7 +207,7 @@ expect
 quotation =
     bracket = \b -> 
         Core.const (\_ -> {})
-        |> Core.keep (String.scalar b)
+        |> Core.keep (String.codeunit b)
         |> Core.skip (Core.many hSpace)
     Core.buildPrimitiveParser \input ->
         Core.parsePartial
@@ -230,12 +230,12 @@ expect
 
 space =
     [' ', '\t', '\n']
-    |> List.map String.scalar
+    |> List.map String.codeunit
     |> Core.oneOf
 
 hSpace = 
     [' ', '\t']
-    |> List.map String.scalar
+    |> List.map String.codeunit
     |> Core.oneOf
 
 expect String.parseStr space "\n" |> Result.isOk

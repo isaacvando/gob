@@ -49,7 +49,7 @@ $ echo [3 4 +] apply | gob examples/factorial.gob --pipe
 I think this idea could be very useful for shell scripting because of the ability to easily compose programs directly on the command line. I have not explored it much however, and right now practical benefits are limited by Gob's very small feature set.
 
 ### Defs
-Gob programs consist of any number of definitions followed by the body of the program. Defs are useful for readability and easily implementation recursion. When a def is referenced in the body of the program, the reference to the def is replaced by its contents. For example, factorial can be implemented like this:
+Gob programs consist of any number of definitions followed by the body of the program. Defs are useful for readability and easily implementing recursion. When a def is referenced in the body of the program, the reference to the def is replaced by its contents. For example, factorial can be implemented like this:
 ```
 # examples/factorialDefs.gob
 fact: 1 - isZero [drop] [dup dig * swap fact] branch apply
@@ -79,4 +79,4 @@ roc build main.roc --output ./gob
 ```
 
 ## Inspiration
-Gob was originally inspired by the excellent talk ["Concatenative programming and stack-based languages](https://youtu.be/umSuLpjFUf8?si=SV1c_Zwc5F4-cPJS) by Douglas Creager at Strange Loop 2023.
+Gob was originally inspired by the excellent talk _[Concatenative programming and stack-based languages](https://youtu.be/umSuLpjFUf8?si=SV1c_Zwc5F4-cPJS)_ by Douglas Creager at Strange Loop 2023.

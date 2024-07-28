@@ -234,3 +234,20 @@ hSpace =
 
 expect String.parseStr space "\n" |> Result.isOk
 expect String.parseStr hSpace "\n" |> Result.isErr
+
+
+expect
+    result = parse
+        """
+        [1 swap dup apply] 1 swap dup apply
+        """
+    result |> Result.isOk
+
+expect
+    result = parse
+        """
+        fact: 1 - isZero [drop] [dup dig * swap fact] branch apply
+
+        dup fact
+        """
+    result |> Result.isOk

@@ -1,3 +1,4 @@
 isZero: dup 0 =
 
+# This can be used as the input to factorialDefs.gob
 7

@@ -15,20 +15,6 @@ import cli.Arg.Param as Param
 import Parser exposing [Program, Stack, Term]
 
 main =
-    cliParser =
-        Cli.build {
-            pipe: <- Opt.flag { short: "p", long: "pipe", help: "Should Gob read a program from stdin." },
-            debug: <- Opt.flag { short: "d", long: "debug", help: "Should Gob print the state of the stack and program during execution. Conflicts with --step." },
-            step: <- Opt.flag { short: "s", long: "step", help: "Should Gob step through the execution of the program by pressing any key. Conflicts with --debug." },
-            path: <- Param.str { name: "path", help: "The path to the Gob program to run" },
-        }
-        |> Cli.finish {
-            name: "gob",
-            authors: ["Isaac Van Doren <https://github.com/isaacvando>"],
-            description: "The gob-lang cli",
-        }
-        |> Cli.assertValid
-
     args =
         Cli.parseOrDisplayMessage cliParser (Arg.list! {})
             |> Task.fromResult
@@ -36,53 +22,69 @@ main =
 
     if args.debug && args.step then
         # TODO: restructure the CLI to remove this case
-        error "Only one of --debug and --step can be specified at once."
+        exitWithError "Only one of --debug and --step can be specified at once."
         |> Task.err
     else
-        file = File.readUtf8! args.path
-        run file "" Debug
+        run args
 
-# main =
-#   result <- path |> File.readUtf8 |> Task.attempt
-#   when result is
-#       Err _ -> Stdout.line "I wasn't able to read from '$(path)'"
-#       Ok file ->
-#           # TODO: use a real command line arg parser to make the cli more robust once one is available
-#           pipeInputTask = if contains args "--pipe" "-p" then Task.loop "" readStdin else Task.ok ""
-#           stdin <- Task.await pipeInputTask
-#           run file stdin (toConfig args)
+cliParser =
+    Cli.build {
+        pipe: <- Opt.flag { short: "p", long: "pipe", help: "Should Gob read a program from stdin." },
+        debug: <- Opt.flag { short: "d", long: "debug", help: "Should Gob print the state of the stack and program during execution. Conflicts with --step." },
+        step: <- Opt.flag { short: "s", long: "step", help: "Should Gob step through the execution of the program by pressing any key. Conflicts with --debug." },
+        path: <- Param.str { name: "path", help: "The path to the Gob program to run" },
+    }
+    |> Cli.finish {
+        name: "gob",
+        authors: ["Isaac Van Doren <https://github.com/isaacvando>"],
+        description: "The gob-lang cli",
+    }
+    |> Cli.assertValid
 
 contains = \list, x, y ->
     List.contains list x || List.contains list y
 
 Config : [Step, Debug, None]
 
-# readStdin : List Str -> Task _ _
-# readStdin = \lines ->
-#   result = Stdin.line!
-#   when result is
-#       Input line -> Step (Str.joinWith [lines, line] "\n")
-#       End -> Done lines
-
-run = \file, stdin, config ->
+run = \args ->
     fileProgram =
-        Parser.parse file
+        Parser.parse (File.readUtf8! args.path)
             |> Task.fromResult
-            |> Task.mapErr! error
+            |> Task.mapErr! exitWithError
 
-    stdinProgram =
-        Parser.parse stdin
-            |> Task.fromResult
-            |> Task.mapErr! error
+    getFinalProgram =
+        if args.pipe then
+            stdinProgram =
+                Parser.parse readAllFromStdin!
+                    |> Task.fromResult
+                    |> Task.mapErr! exitWithError
 
-    finalProgram =
-        compose stdinProgram fileProgram
-            |> Task.fromResult
-            |> Task.mapErr! error
+            compose stdinProgram fileProgram
+                |> Task.fromResult
+                |> Task.mapErr! exitWithError
+        else
+            Task.ok fileProgram
 
+    finalProgram = getFinalProgram!
     msg = Task.loop! ([], finalProgram) \x ->
-        interpret x config
+        interpret x Debug
     Stdout.line msg
+
+readAllFromStdin : Task Str _
+readAllFromStdin =
+    iter = \state ->
+        when Stdin.line |> Task.result! is
+            Ok line ->
+                newState =
+                    Str.concat state "\n"
+                    |> Str.concat line
+                Task.ok (Step newState)
+
+            Err (StdinErr EndOfFile) -> Task.ok (Done state)
+            Err err ->
+                Stdout.line! "ERROR: $(Inspect.toStr err)"
+                Task.err (Done {})
+    Task.loop "" iter
 
 # Merge the program read from the file and the one read from stdin into a single one
 compose : Program, Program -> Result Program Str
@@ -269,6 +271,14 @@ showTerm = \term ->
         Builtin s -> s
         Def s -> s
 
-error : Str -> [Exit (Num *) Str]
-error = \msg ->
-    Exit 1 "\u(001b)[31mERROR:\u(001b)[0m $(msg)"
+exitWithError : Str -> [Exit (Num *) Str]
+exitWithError = \msg ->
+    Exit 1 (errorAnsi msg)
+
+printError : Str -> Task {} _
+printError = \msg ->
+    Stdout.line (errorAnsi msg)
+
+errorAnsi : Str -> Str
+errorAnsi = \msg ->
+    "\u(001b)[31mERROR:\u(001b)[0m $(msg)"

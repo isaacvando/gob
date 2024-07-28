@@ -22,7 +22,7 @@ main =
 
     if args.debug && args.step then
         # TODO: restructure the CLI to remove this case
-        exitWithError "Only one of --debug and --step can be specified at once."
+        exitWithError "--debug and --step conflict. Please remove one of them and try again."
         |> Task.err
     else
         run args
@@ -31,7 +31,7 @@ cliParser =
     Cli.build {
         pipe: <- Opt.flag { short: "p", long: "pipe", help: "Should Gob read a program from stdin." },
         debug: <- Opt.flag { short: "d", long: "debug", help: "Should Gob print the state of the stack and program during execution. Conflicts with --step." },
-        step: <- Opt.flag { short: "s", long: "step", help: "Should Gob step through the execution of the program by pressing any key. Conflicts with --debug." },
+        step: <- Opt.flag { short: "s", long: "step", help: "Should Gob step through the execution of the program by pressing <enter>. Conflicts with --debug. If --pipe is specified, Gob may fallback to --debug depending on usage." },
         path: <- Param.str { name: "path", help: "The path to the Gob program to run" },
     }
     |> Cli.finish {
@@ -66,8 +66,17 @@ run = \args ->
             Task.ok fileProgram
 
     finalProgram = getFinalProgram!
+
+    outputStyle =
+        if args.step then
+            Step
+        else if args.debug then
+            Debug
+        else
+            None
+
     msg = Task.loop! ([], finalProgram) \x ->
-        interpret x Debug
+        interpret x outputStyle
     Stdout.line msg
 
 readAllFromStdin : Task Str _
@@ -96,15 +105,21 @@ compose = \x, y ->
     else
         Ok { defs: Dict.insertAll x.defs y.defs, body: List.concat x.body y.body }
 
-interpret = \(stack, program), config ->
+interpret = \(stack, program), outputStyle ->
     task =
-        when config is
-            Debug -> showExecution stack program.body |> Stdout.line
+        when outputStyle is
+            Debug -> showExecution stack program.body
+                |> Stdout.line
             Step ->
-                _ <- showExecution stack program.body |> Stdout.write |> Task.await
-                Stdin.line |> Task.map \_ -> {}
+                showExecution stack program.body |> Stdout.write!
+                when Stdin.line |> Task.result! is
+                    Ok _ -> Task.ok {}
+                    Err _ ->
+                        Stdout.line ""
+                    #Err err -> Done (errorAnsi "There was an error while reading user input to go to the next step")
+                    #    |> Task.err
 
-            _ -> Task.ok {}
+            None -> Task.ok {}
     _ <- Task.await task
     result =
         when step stack program is

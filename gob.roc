@@ -12,17 +12,14 @@ import cli.Arg
 import cli.Arg.Opt as Opt
 import cli.Arg.Cli as Cli
 import cli.Arg.Param as Param
-
-# import parser.Core # must be imported here to be used by Parser.roc
-# import parser.String # must be imported here to be used by Parser.roc
 import Parser exposing [Program, Stack, Term]
 
 main =
     cliParser =
         Cli.build {
-            pipe: <- Opt.flag { short: "p", long: "pipe" },
-            debug: <- Opt.flag { short: "d", long: "debug" },
-            step: <- Opt.flag { short: "s", long: "step" },
+            pipe: <- Opt.flag { short: "p", long: "pipe", help: "Should Gob read a program from stdin." },
+            debug: <- Opt.flag { short: "d", long: "debug", help: "Should Gob print the state of the stack and program during execution. Conflicts with --step." },
+            step: <- Opt.flag { short: "s", long: "step", help: "Should Gob step through the execution of the program by pressing any key. Conflicts with --debug." },
             path: <- Param.str { name: "path", help: "The path to the Gob program to run" },
         }
         |> Cli.finish {
@@ -32,13 +29,18 @@ main =
         }
         |> Cli.assertValid
 
-    when Cli.parseOrDisplayMessage cliParser (Arg.list! {}) is
-        Err err ->
-            Stdout.line! err
+    args =
+        Cli.parseOrDisplayMessage cliParser (Arg.list! {})
+            |> Task.fromResult
+            |> Task.mapErr! \err -> Exit 1 err
 
-        Ok args ->
-            file = File.readUtf8! args.path
-            run file "" Step
+    if args.debug && args.step then
+        # TODO: restructure the CLI to remove this case
+        error "Only one of --debug and --step can be specified at once."
+        |> Task.err
+    else
+        file = File.readUtf8! args.path
+        run file "" Debug
 
 # main =
 #   result <- path |> File.readUtf8 |> Task.attempt
@@ -55,18 +57,6 @@ contains = \list, x, y ->
 
 Config : [Step, Debug, None]
 
-toConfig = \args ->
-    if
-        contains args "--step" "-s"
-    then
-        Step
-    else if
-        contains args "--debug" "-d"
-    then
-        Debug
-    else
-        None
-
 # readStdin : List Str -> Task _ _
 # readStdin = \lines ->
 #   result = Stdin.line!
@@ -75,17 +65,24 @@ toConfig = \args ->
 #       End -> Done lines
 
 run = \file, stdin, config ->
-    when Parser.parse file is
-        Err msg -> Stdout.line msg
-        Ok fileProg ->
-            when Parser.parse stdin is
-                Err msg -> Stdout.line msg
-                Ok stdinProg ->
-                    when compose stdinProg fileProg is
-                        Err msg -> Stdout.line msg
-                        Ok prog ->
-                            msg <- Task.loop ([], prog) (\x -> interpret x config) |> Task.await
-                            Stdout.line msg
+    fileProgram =
+        Parser.parse file
+            |> Task.fromResult
+            |> Task.mapErr! error
+
+    stdinProgram =
+        Parser.parse stdin
+            |> Task.fromResult
+            |> Task.mapErr! error
+
+    finalProgram =
+        compose stdinProgram fileProgram
+            |> Task.fromResult
+            |> Task.mapErr! error
+
+    msg = Task.loop! ([], finalProgram) \x ->
+        interpret x config
+    Stdout.line msg
 
 # Merge the program read from the file and the one read from stdin into a single one
 compose : Program, Program -> Result Program Str

@@ -1,6 +1,6 @@
 module [parse, Program, Stack, Term]
 
-import parser.Core exposing [Parser]
+import parser.Core
 import parser.String
 
 Program : {

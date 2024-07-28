@@ -41,11 +41,6 @@ cliParser =
     }
     |> Cli.assertValid
 
-contains = \list, x, y ->
-    List.contains list x || List.contains list y
-
-Config : [Step, Debug, None]
-
 run = \args ->
     fileProgram =
         Parser.parse (File.readUtf8! args.path)
@@ -59,7 +54,7 @@ run = \args ->
                     |> Task.fromResult
                     |> Task.mapErr! exitWithError
 
-            compose stdinProgram fileProgram
+            mergePrograms stdinProgram fileProgram
                 |> Task.fromResult
                 |> Task.mapErr! exitWithError
         else
@@ -91,47 +86,42 @@ readAllFromStdin =
 
             Err (StdinErr EndOfFile) -> Task.ok (Done state)
             Err err ->
-                Stdout.line! "ERROR: $(Inspect.toStr err)"
+                printError! "ERROR: $(Inspect.toStr err)"
                 Task.err (Done {})
     Task.loop "" iter
 
 # Merge the program read from the file and the one read from stdin into a single one
-compose : Program, Program -> Result Program Str
-compose = \x, y ->
-    if
-        Dict.keys x.defs |> List.any \k -> Dict.contains y.defs k
-    then
+mergePrograms : Program, Program -> Result Program Str
+mergePrograms = \x, y ->
+    if Dict.keys x.defs |> List.any \k -> Dict.contains y.defs k then
         Err "I found a duplicate key in the piped input"
     else
         Ok { defs: Dict.insertAll x.defs y.defs, body: List.concat x.body y.body }
 
 interpret = \(stack, program), outputStyle ->
-    task =
+    printOutput =
         when outputStyle is
-            Debug -> showExecution stack program.body
+            Debug ->
+                showExecution stack program.body
                 |> Stdout.line
+
             Step ->
                 showExecution stack program.body |> Stdout.write!
-                when Stdin.line |> Task.result! is
-                    Ok _ -> Task.ok {}
-                    Err _ ->
-                        Stdout.line ""
-                    #Err err -> Done (errorAnsi "There was an error while reading user input to go to the next step")
-                    #    |> Task.err
+                Stdin.line
+                |> Task.map \_ -> {}
+                |> Task.onErr \_ -> Stdout.line "" # Print a newline to keep the correct formatting
 
             None -> Task.ok {}
-    _ <- Task.await task
-    result =
-        when step stack program is
-            Ok state -> Step state
-            Err err -> Done (handleStepError err)
+    printOutput!
+    result = when step stack program is
+        Ok state -> Step state
+        Err (EndOfProgram finalStack) -> Done (showTerms finalStack)
+        Err err -> Done (handleStepError err |> errorAnsi)
+    Task.ok result
 
-    result |> Task.ok
 
-handleStepError : StepError -> Str
 handleStepError = \err ->
     when err is
-        EndOfProgram stack -> showTerms stack
         Arity name n ->
             when n is
                 1 -> "Uh oh, $(name) expects there to be at least 1 element on the stack but there weren't any."
@@ -140,16 +130,8 @@ handleStepError = \err ->
         TypeMismatch name -> "Uh oh, $(name) can't operate on that kind of arguments."
         UnknownName name -> "Uh oh, I don't know anything named '$(name)'."
         ArgMustBePositive name num -> "Whoops, $(name) can't operate on a negative value like $(Num.toStr num)!"
+        _ -> "This branch should never be hit" # TODO: remove
 
-StepError : [
-    EndOfProgram Stack,
-    UnknownName Str,
-    Arity Str U64,
-    TypeMismatch Str,
-    ArgMustBePositive Str I64,
-]
-
-step : Stack, Program -> Result (Stack, Program) StepError
 step = \stack, program ->
     p = { program & body: List.dropFirst program.body 1 }
     when List.first program.body is
@@ -165,7 +147,7 @@ step = \stack, program ->
                         Err _ -> Err (UnknownName name)
                         Ok ts -> Ok (stack, { p & body: List.concat ts p.body })
 
-stepBuiltin : Stack, Program, Str -> Result (Stack, Program) StepError
+stepBuiltin : Stack, Program, Str -> Result (Stack, Program) _
 stepBuiltin = \stack, p, name ->
     when name is
         "+" ->
@@ -265,6 +247,8 @@ stepBuiltin = \stack, p, name ->
         "false" -> Ok (List.append stack (Builtin "false"), p)
         # TODO: refactor the builtins to be tags instead of strings which would avoid the need for this.
         _ -> crash "***crash*** There was either an error during parsing or $(name) hasn't been implemented yet."
+
+### Output
 
 showExecution : Stack, List Term -> Str
 showExecution = \stack, program ->

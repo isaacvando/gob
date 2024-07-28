@@ -1,75 +1,79 @@
-app "gob"
-    packages {
-        pf: "https://github.com/roc-lang/basic-cli/releases/download/0.8.1/x8URkvfyi9I0QhmVG98roKBUs_AZRkLFwFJVJ3942YA.tar.br",
-        parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.5.2/9VrPjwfQQ1QeSL3CfmWr2Pr9DESdDIXy97pwpuq84Ck.tar.br",
-    }
-    imports [
-        pf.Stdout,
-        pf.Stdin,
-        pf.Task.{ Task },
-        pf.File,
-        pf.Arg,
-        pf.Path,
-        parser.Core, # must be imported here to be used by Parser.roc
-        parser.String, # must be imported here to be used by Parser.roc
-        Parser.{ Program, Stack, Term },
-    ]
-    provides [main] to pf
+app [main] {
+    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.12.0/Lb8EgiejTUzbggO2HVVuPJFkwvvsfW6LojkLR20kTVE.tar.br",
+    parser: "https://github.com/lukewilliamboswell/roc-parser/releases/download/0.7.1/MvLlME9RxOBjl0QCxyn3LIaoG9pSlaNxCa-t3BfbPNc.tar.br",
+}
 
-main : Task {} I32
+import cli.Stdout
+import cli.Stdin
+import cli.Task exposing [Task]
+import cli.File
+import cli.Arg
+import cli.Arg
+import cli.Arg.Opt as Opt
+import cli.Arg.Cli as Cli
+import cli.Arg.Param as Param
+
+# import parser.Core # must be imported here to be used by Parser.roc
+# import parser.String # must be imported here to be used by Parser.roc
+import Parser exposing [Program, Stack, Term]
+
 main =
-    args <- Arg.list |> Task.await
-    when args is
-        [] | [_] | [_, "--help"] | [_, "-h"] -> Stdout.line helpMessage
-        [_, path, ..] ->    
-            result <- Path.fromStr path |> File.readUtf8 |> Task.attempt
-            when result is
-                Err _ -> Stdout.line "I wasn't able to read from '\(path)'"
-                Ok file ->
-                    # TODO: use a real command line arg parser to make the cli more robust once one is available
-                    pipeInputTask = if contains args "--pipe" "-p" then Task.loop "" readStdin else Task.ok ""
-                    stdin <- Task.await pipeInputTask
-                    run file stdin (toConfig args)
+    cliParser =
+        Cli.build {
+            pipe: <- Opt.flag { short: "p", long: "pipe" },
+            debug: <- Opt.flag { short: "d", long: "debug" },
+            step: <- Opt.flag { short: "s", long: "step" },
+            path: <- Param.str { name: "path", help: "The path to the Gob program to run" },
+        }
+        |> Cli.finish {
+            name: "gob",
+            authors: ["Isaac Van Doren <https://github.com/isaacvando>"],
+            description: "The gob-lang cli",
+        }
+        |> Cli.assertValid
 
+    when Cli.parseOrDisplayMessage cliParser (Arg.list! {}) is
+        Err err ->
+            Stdout.line! err
 
-contains = \list, x, y -> 
+        Ok args ->
+            file = File.readUtf8! args.path
+            run file "" Step
+
+# main =
+#   result <- path |> File.readUtf8 |> Task.attempt
+#   when result is
+#       Err _ -> Stdout.line "I wasn't able to read from '$(path)'"
+#       Ok file ->
+#           # TODO: use a real command line arg parser to make the cli more robust once one is available
+#           pipeInputTask = if contains args "--pipe" "-p" then Task.loop "" readStdin else Task.ok ""
+#           stdin <- Task.await pipeInputTask
+#           run file stdin (toConfig args)
+
+contains = \list, x, y ->
     List.contains list x || List.contains list y
-
-helpMessage = 
-    """
-    The gob-lang cli
-
-    usage: gob <filepath>.gob [option]
-
-    options:
-        -h, --help      print this message
-        -d, --debug     print all intermediate states
-        -s, --step      print the current state and wait for a key press to print the next state
-
-    examples:
-        gob examples/factorial.gob
-        gob advent_of_code.gob --debug
-        gob program.gob -s
-    """
 
 Config : [Step, Debug, None]
 
 toConfig = \args ->
-    if contains args "--step" "-s"
-    then Step
-    else if contains args "--debug" "-d"
-    then Debug
-    else None
+    if
+        contains args "--step" "-s"
+    then
+        Step
+    else if
+        contains args "--debug" "-d"
+    then
+        Debug
+    else
+        None
 
-readStdin = \lines ->
-    result <- Stdin.line |> Task.await
-    state =
-        when result is
-            Input line -> Step (Str.joinWith [lines, line] "\n")
-            End -> Done lines
-    Task.ok state
+# readStdin : List Str -> Task _ _
+# readStdin = \lines ->
+#   result = Stdin.line!
+#   when result is
+#       Input line -> Step (Str.joinWith [lines, line] "\n")
+#       End -> Done lines
 
-run : Str, Str, Config -> Task {} I32
 run = \file, stdin, config ->
     when Parser.parse file is
         Err msg -> Stdout.line msg
@@ -82,7 +86,6 @@ run = \file, stdin, config ->
                         Ok prog ->
                             msg <- Task.loop ([], prog) (\x -> interpret x config) |> Task.await
                             Stdout.line msg
-
 
 # Merge the program read from the file and the one read from stdin into a single one
 compose : Program, Program -> Result Program Str
@@ -117,12 +120,12 @@ handleStepError = \err ->
         EndOfProgram stack -> showTerms stack
         Arity name n ->
             when n is
-                1 -> "Uh oh, \(name) expects there to be at least 1 element on the stack but there weren't any."
-                _ -> "Uh oh, \(name) expects there to be at least \(Num.toStr n) elements on the stack but there weren't enough."
+                1 -> "Uh oh, $(name) expects there to be at least 1 element on the stack but there weren't any."
+                _ -> "Uh oh, $(name) expects there to be at least $(Num.toStr n) elements on the stack but there weren't enough."
 
-        TypeMismatch name -> "Uh oh, \(name) can't operate on that kind of arguments."
-        UnknownName name -> "Uh oh, I don't know anything named '\(name)'."
-        ArgMustBePositive name num -> "Whoops, \(name) can't operate on a negative value like \(Num.toStr num)!"
+        TypeMismatch name -> "Uh oh, $(name) can't operate on that kind of arguments."
+        UnknownName name -> "Uh oh, I don't know anything named '$(name)'."
+        ArgMustBePositive name num -> "Whoops, $(name) can't operate on a negative value like $(Num.toStr num)!"
 
 StepError : [
     EndOfProgram Stack,
@@ -247,7 +250,7 @@ stepBuiltin = \stack, p, name ->
         "true" -> Ok (List.append stack (Builtin "true"), p)
         "false" -> Ok (List.append stack (Builtin "false"), p)
         # TODO: refactor the builtins to be tags instead of strings which would avoid the need for this.
-        _ -> crash "***crash*** There was either an error during parsing or \(name) hasn't been implemented yet."
+        _ -> crash "***crash*** There was either an error during parsing or $(name) hasn't been implemented yet."
 
 showExecution : Stack, List Term -> Str
 showExecution = \stack, program ->
@@ -264,7 +267,11 @@ showTerms = \terms ->
 showTerm = \term ->
     when term is
         Number x -> Num.toStr x
-        String s -> "\"\(s)\""
-        Quotation prog -> "[\(showTerms prog)]"
+        String s -> "\"$(s)\""
+        Quotation prog -> "[$(showTerms prog)]"
         Builtin s -> s
         Def s -> s
+
+error : Str -> [Exit (Num *) Str]
+error = \msg ->
+    Exit 1 "\u(001b)[31mERROR:\u(001b)[0m $(msg)"

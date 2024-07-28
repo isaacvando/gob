@@ -1,9 +1,7 @@
-interface Parser
-    exposes [parse, Program, Stack, Term]
-    imports [
-        parser.Core.{ Parser },
-        parser.String.{ RawStr },
-    ]
+module [parse, Program, Stack, Term]
+
+import parser.Core exposing [Parser]
+import parser.String
 
 Program : {
     defs : Dict Str (List Term),
@@ -22,7 +20,7 @@ parse : Str -> Result Program Str
 parse = \input ->
     when String.parseStr program (clean input) is
         Err (ParsingFailure msg) -> Err msg
-        Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was:\n \(remaining)"
+        Err (ParsingIncomplete remaining) -> Err "I wasn't able to parse all of the input. What I had left was:\n $(remaining)"
         Ok p -> Ok p
 
 # Remove comments and blank space
@@ -39,7 +37,7 @@ clean = \input ->
 isBlank : Str -> Bool
 isBlank = \str ->
     Str.toUtf8 str
-    |> List.all \x -> 
+    |> List.all \x ->
         List.contains [' ', '\t', '\n'] x
 
 program =
@@ -50,7 +48,7 @@ program =
     |> Core.keep body
 
 expect
-    input = 
+    input =
         """
         def1: "foo"
         def2: def1 10
@@ -64,11 +62,11 @@ expect
 
 body = terms (Core.oneOrMore space)
 
-expect 
+expect
     result = String.parseStr body "-10 + 10"
     result == Ok [Number -10, Builtin "+", Number 10]
 
-expect 
+expect
     result = String.parseStr body "- 10 + 10"
     result == Ok [Builtin "-", Number 10, Builtin "+", Number 10]
 
@@ -85,7 +83,7 @@ def =
     |> Core.skip (Core.many hSpace)
     |> Core.skip (String.codeunit '\n')
 
-expect 
+expect
     result = String.parseStr def "name: \"foo\" + dup\n"
     result == Ok ("name", [String "foo", Builtin "+", Builtin "dup"])
 
@@ -107,7 +105,7 @@ identifier =
         else if
             List.contains reserved converted
         then
-            Err "'\(converted)' is a reserved word"
+            Err "'$(converted)' is a reserved word"
         else
             Ok converted
 
@@ -127,13 +125,11 @@ alphaNumeric =
     lowers = List.range { start: At 97, end: At 122 }
     List.join [digits, caps, lowers]
 
-terms = \spacer -> 
+terms = \spacer ->
     Core.sepBy term spacer
 
-
-
 term =
-    [number, quotation, string] 
+    [number, quotation, string]
     |> List.concat builtins
     |> Core.oneOf
     |> Core.alt (identifier |> Core.map Def)
@@ -171,11 +167,11 @@ reserved = [
 
 number =
     positive = String.digits |> Core.map \n -> Num.toI64 n |> Number
-    negative = 
+    negative =
         convert = \n -> Num.toI64 n * -1 |> Number
         Core.const convert
-            |> Core.skip (String.codeunit '-')
-            |> Core.keep String.digits
+        |> Core.skip (String.codeunit '-')
+        |> Core.keep String.digits
 
     Core.alt positive negative
 
@@ -197,15 +193,13 @@ string =
     |> Core.keep (Core.chompWhile isNotQuote)
     |> Core.skip (String.string "\"")
 
-
-
 expect
     String.parseStr string "\"a string\"" == Ok (String "a string")
 
 # buildPrimitiveParser is used here as a work around for a bug that sometimes comes up with recursive parsers such as this
 # https://roc.zulipchat.com/#narrow/stream/231634-beginners/topic/Compiler.20stack.20overflow.20on.20recursive.20parser/near/377685052
 quotation =
-    bracket = \b -> 
+    bracket = \b ->
         Core.const (\_ -> {})
         |> Core.keep (String.codeunit b)
         |> Core.skip (Core.many hSpace)
@@ -233,7 +227,7 @@ space =
     |> List.map String.codeunit
     |> Core.oneOf
 
-hSpace = 
+hSpace =
     [' ', '\t']
     |> List.map String.codeunit
     |> Core.oneOf
